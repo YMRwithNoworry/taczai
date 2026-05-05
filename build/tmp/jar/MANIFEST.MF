@@ -1,0 +1,9 @@
+Manifest-Version: 1.0
+Specification-Title: taczai
+Specification-Vendor: 1
+Specification-Version: 1
+Implementation-Title: taczai
+Implementation-Version: 1.0-SNAPSHOT
+Implementation-Vendor: 1
+Implementation-Timestamp: 2026-05-05T09:37:21+0800
+

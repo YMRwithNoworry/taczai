@@ -1,0 +1,34 @@
+modLoader = "javafml"
+loaderVersion = "[47,)"
+license = "All Rights Reserved"
+
+[[mods]]
+modId = "taczai"
+version = "1.0-SNAPSHOT"
+displayName = "taczai"
+updateJSONURL = "https://github.com/alku/taczai/releases"
+displayURL = "https://github.com/alku/taczai"
+credits = "Developed by alku"
+authors = "1"
+description = '''AI auto-aim addon for TACZ (Timeless and Classics Zero) gun mod. Automatically aims at enemies and fires when holding a TACZ gun. Toggle with hotkey.'''
+
+[[dependencies."taczai"]]
+modId = "forge"
+mandatory = true
+versionRange = "[47,)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies."taczai"]]
+modId = "minecraft"
+mandatory = true
+versionRange = "[1.20.1,1.21)"
+ordering = "NONE"
+side = "BOTH"
+
+[[dependencies."taczai"]]
+modId = "tacz"
+mandatory = true
+versionRange = "[1.0.0,)"
+ordering = "AFTER"
+side = "CLIENT"
