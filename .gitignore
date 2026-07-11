@@ -1,2 +1,7 @@
 # 杂物目录
 杂物/
+
+# Gradle and generated output
+.gradle/
+build/
+logs/

@@ -2,7 +2,6 @@ package alku.taczai.aimbot;
 
 import alku.taczai.Config;
 import alku.taczai.keybind.KeyMappings;
-import net.minecraft.client.Minecraft;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -39,22 +38,33 @@ public class TargetSelector {
         AABB searchBox = player.getBoundingBox().inflate(range);
         List<LivingEntity> entities = player.level().getEntitiesOfClass(
                 LivingEntity.class, searchBox,
-                e -> e != player && e.isAlive() && e.distanceToSqr(player) <= range * range
+                e -> e != player
+                        && e.isAlive()
+                        && e.distanceToSqr(player) <= range * range
+                        && hasLineOfSight(player, e)
         );
 
         if (entities.isEmpty()) return null;
 
         LivingEntity best = entities.stream()
-                .min(Comparator.comparingDouble(e -> {
-                    Vec3 toEntity = e.getEyePosition().subtract(eyePos).normalize();
-                    return 1.0 - lookVec.dot(toEntity);
-                }))
+                .min(Comparator.comparingDouble(e -> aimScore(eyePos, lookVec, e.getBoundingBox())))
                 .orElse(null);
 
-        if (best != null && hasLineOfSight(player, best)) {
-            return best;
+        return best;
+    }
+
+    static double aimScore(Vec3 eyePos, Vec3 lookVec, AABB targetBox) {
+        Vec3 direction = lookVec.normalize();
+        Vec3 targetCenter = targetBox.getCenter();
+        double rayLength = eyePos.distanceTo(targetCenter) + targetBox.getSize() + 1.0;
+
+        if (targetBox.contains(eyePos)
+                || targetBox.clip(eyePos, eyePos.add(direction.scale(rayLength))).isPresent()) {
+            return 0.0;
         }
-        return null;
+
+        Vec3 toTarget = targetCenter.subtract(eyePos).normalize();
+        return 1.0 - direction.dot(toTarget);
     }
 
     private static LivingEntity raytraceEntity(Player player) {
