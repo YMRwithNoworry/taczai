@@ -4,19 +4,14 @@ import alku.taczai.Config;
 import net.minecraft.util.Mth;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 public class RotationHelper {
 
     public static float[] getTargetRotation(Player player, LivingEntity target) {
         Vec3 playerPos = player.getEyePosition();
-        Vec3 targetPos;
-
-        if (Config.aimAtHead) {
-            targetPos = target.getEyePosition();
-        } else {
-            targetPos = target.getBoundingBox().getCenter();
-        }
+        Vec3 targetPos = targetPoint(target.getBoundingBox(), Config.aimAtHead);
 
         double dx = targetPos.x - playerPos.x;
         double dy = targetPos.y - playerPos.y;
@@ -31,6 +26,21 @@ public class RotationHelper {
         float targetPitch = (float) -(Mth.atan2(dy, horizontalDist) * 180.0F / Math.PI);
 
         return new float[]{targetYaw, targetPitch};
+    }
+
+    static Vec3 targetPoint(AABB box, boolean aimAtHead) {
+        if (!aimAtHead) {
+            return box.getCenter();
+        }
+
+        double height = box.getYsize();
+        double epsilon = Math.min(1.0e-4, height * 0.1);
+        double y = Math.min(box.maxY - epsilon, box.minY + height * 0.8);
+        return new Vec3(
+                (box.minX + box.maxX) * 0.5,
+                y,
+                (box.minZ + box.maxZ) * 0.5
+        );
     }
 
     public static float smoothAngle(float current, float target, float speed) {
