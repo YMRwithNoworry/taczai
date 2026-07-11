@@ -5,6 +5,7 @@ import alku.taczai.keybind.KeyMappings;
 import alku.taczai.keybind.MouseInputHandler;
 import alku.taczai.overlay.AimbotOverlay;
 import alku.taczai.overlay.EnemyOutlineHandler;
+import alku.taczai.overlay.TeammateFrameRenderer;
 import com.mojang.logging.LogUtils;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RegisterKeyMappingsEvent;
@@ -50,6 +51,7 @@ public class Taczai {
         MinecraftForge.EVENT_BUS.register(new AimbotHandler());
         MinecraftForge.EVENT_BUS.register(new AimbotOverlay());
         MinecraftForge.EVENT_BUS.register(new EnemyOutlineHandler());
+        MinecraftForge.EVENT_BUS.register(new TeammateFrameRenderer());
     }
 
     private void registerKeyMappings(RegisterKeyMappingsEvent event) {

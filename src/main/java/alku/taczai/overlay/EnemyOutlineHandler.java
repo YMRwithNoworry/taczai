@@ -1,6 +1,7 @@
 package alku.taczai.overlay;
 
 import alku.taczai.keybind.KeyMappings;
+import alku.taczai.teammate.TeammateManager;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.world.entity.player.Player;
@@ -29,7 +30,7 @@ public class EnemyOutlineHandler {
             boolean eligible = shouldOutline(
                     KeyMappings.aimbotEnabled,
                     remotePlayer == localPlayer,
-                    localPlayer.isAlliedTo(remotePlayer),
+                    TeammateManager.isEffectiveTeammate(localPlayer, remotePlayer),
                     remotePlayer.isAlive()
             );
 
