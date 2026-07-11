@@ -4,5 +4,15 @@
     "key.taczai.switch_mode": "Switch Aim Mode (Manual/Auto)",
     "key.taczai.select_target": "Select Manual Aim Target",
     "message.taczai.teammate_added": "Added %s as a permanent teammate",
-    "message.taczai.teammate_removed": "Removed %s from permanent teammates"
+    "message.taczai.teammate_removed": "Removed %s from permanent teammates",
+    "config.taczai.title": "TaczAI Configuration",
+    "config.taczai.aiming": "Auto Aim",
+    "config.taczai.range": "Maximum Range",
+    "config.taczai.speed": "Aim Smoothing",
+    "config.taczai.fov": "FOV Angle",
+    "config.taczai.head": "Aim at Head",
+    "config.taczai.autofire": "Auto Fire",
+    "config.taczai.teammates": "Permanent Teammates (select to remove)",
+    "config.taczai.remove_yes": "Remove on save",
+    "config.taczai.remove_no": "Keep"
 }

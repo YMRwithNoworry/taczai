@@ -24,7 +24,7 @@ public class TargetSelector {
 
     public static void confirmTarget(Player player) {
         if (player == null || player.level() == null) return;
-        LivingEntity target = raytraceEntity(player);
+        LivingEntity target = raytraceEntity(player, true);
         if (target == null) return;
         confirmedTarget = target;
     }
@@ -76,7 +76,7 @@ public class TargetSelector {
         return angle <= maxDegrees + 1.0e-7;
     }
 
-    private static LivingEntity raytraceEntity(Player player) {
+    private static LivingEntity raytraceEntity(Player player, boolean excludeTeammates) {
         double range = Config.aimbotRange;
         Vec3 eyePos = player.getEyePosition();
         Vec3 lookVec = player.getLookAngle();
@@ -102,7 +102,7 @@ public class TargetSelector {
             LivingEntity living = (LivingEntity) entity;
             if (!living.isAlive()) continue;
             if (living == player) continue;
-            if (living instanceof Player candidate && TeammateManager.isEffectiveTeammate(player, candidate)) continue;
+            if (excludeTeammates && living instanceof Player candidate && TeammateManager.isEffectiveTeammate(player, candidate)) continue;
 
             AABB entityBox = living.getBoundingBox().inflate(0.3);
             Optional<Vec3> hitOpt = entityBox.clip(eyePos, finalEndPos);
@@ -163,7 +163,7 @@ public class TargetSelector {
     }
 
     public static Player raytracePlayer(Player player) {
-        LivingEntity target = raytraceEntity(player);
+        LivingEntity target = raytraceEntity(player, false);
         return target instanceof Player candidate ? candidate : null;
     }
 

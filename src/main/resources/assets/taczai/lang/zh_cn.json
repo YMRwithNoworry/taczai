@@ -4,5 +4,15 @@
     "key.taczai.switch_mode": "切换瞄准模式(手动/自动)",
     "key.taczai.select_target": "手动选择自瞄目标",
     "message.taczai.teammate_added": "已将 %s 添加为永久队友",
-    "message.taczai.teammate_removed": "已将 %s 移出永久队友"
+    "message.taczai.teammate_removed": "已将 %s 移出永久队友",
+    "config.taczai.title": "TaczAI 配置",
+    "config.taczai.aiming": "自动瞄准",
+    "config.taczai.range": "最大射程",
+    "config.taczai.speed": "瞄准平滑度",
+    "config.taczai.fov": "FOV角度",
+    "config.taczai.head": "瞄准头部",
+    "config.taczai.autofire": "自动开火",
+    "config.taczai.teammates": "永久队友（选择移除）",
+    "config.taczai.remove_yes": "保存时移除",
+    "config.taczai.remove_no": "保留"
 }

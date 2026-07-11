@@ -34,6 +34,7 @@ public class Taczai {
         DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> {
             modEventBus.addListener(this::clientSetup);
             modEventBus.addListener(this::registerKeyMappings);
+            ClientRegistration.registerConfigScreen();
         });
 
         MinecraftForge.EVENT_BUS.register(this);

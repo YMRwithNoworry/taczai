@@ -69,4 +69,18 @@ public class Config {
         TEAMMATE_NAMES.set(teammateNames);
         SPEC.save();
     }
+
+    public static void updateAiming(int range, double speed, double fov, boolean head, boolean fire) {
+        AIMBOT_RANGE.set(range);
+        AIM_SPEED.set(speed);
+        AIMBOT_FOV.set(fov);
+        AIM_AT_HEAD.set(head);
+        AUTO_FIRE.set(fire);
+        aimbotRange = range;
+        aimSpeed = speed;
+        aimbotFov = fov;
+        aimAtHead = head;
+        autoFire = fire;
+        SPEC.save();
+    }
 }
