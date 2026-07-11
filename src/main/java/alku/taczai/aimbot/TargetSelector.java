@@ -132,15 +132,35 @@ public class TargetSelector {
 
     public static boolean hasLineOfSight(Player player, LivingEntity target) {
         Vec3 from = player.getEyePosition();
-        Vec3 to = target.getEyePosition();
-        ClipContext context = new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player);
-        HitResult result = player.level().clip(context);
-        if (result.getType() == HitResult.Type.BLOCK) {
+        for (Vec3 to : visibilityPoints(target.getBoundingBox())) {
+            ClipContext context = new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player);
+            HitResult result = player.level().clip(context);
+            if (result.getType() != HitResult.Type.BLOCK) {
+                return true;
+            }
+
             double blockDist = result.getLocation().distanceToSqr(from);
             double targetDist = to.distanceToSqr(from);
-            return blockDist >= targetDist - 1.0;
+            if (blockDist >= targetDist - 1.0) {
+                return true;
+            }
         }
-        return true;
+        return false;
+    }
+
+    static List<Vec3> visibilityPoints(AABB box) {
+        double height = box.getYsize();
+        double epsilon = Math.min(1.0e-4, height * 0.1);
+        double lowerY = Math.max(box.minY + epsilon, box.minY + height * 0.2);
+        double upperY = Math.min(box.maxY - epsilon, box.minY + height * 0.8);
+        double centerX = (box.minX + box.maxX) * 0.5;
+        double centerZ = (box.minZ + box.maxZ) * 0.5;
+
+        return List.of(
+                box.getCenter(),
+                new Vec3(centerX, upperY, centerZ),
+                new Vec3(centerX, lowerY, centerZ)
+        );
     }
 
     public static void resetTarget() {
