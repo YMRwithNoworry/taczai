@@ -20,6 +20,10 @@ public class Config {
             .comment("Aiming smoothness (0.0 = instant snap, 1.0 = very slow)")
             .defineInRange("aimSpeed", 0.3, 0.0, 1.0);
 
+    private static final ForgeConfigSpec.DoubleValue AIMBOT_FOV = BUILDER
+            .comment("Maximum angular offset from the crosshair in degrees")
+            .defineInRange("aimbotFov", 20.0, 1.0, 180.0);
+
     private static final ForgeConfigSpec.BooleanValue AIM_AT_HEAD = BUILDER
             .comment("Aim at head level (true) or body center (false)")
             .define("aimAtHead", true);
@@ -40,6 +44,7 @@ public class Config {
 
     public static int aimbotRange;
     public static double aimSpeed;
+    public static double aimbotFov;
     public static boolean aimAtHead;
     public static boolean autoFire;
     public static List<String> teammateUuids = List.of();
@@ -49,6 +54,7 @@ public class Config {
     static void onLoad(final ModConfigEvent event) {
         aimbotRange = AIMBOT_RANGE.get();
         aimSpeed = AIM_SPEED.get();
+        aimbotFov = AIMBOT_FOV.get();
         aimAtHead = AIM_AT_HEAD.get();
         autoFire = AUTO_FIRE.get();
         teammateUuids = List.copyOf(TEAMMATE_UUIDS.get());

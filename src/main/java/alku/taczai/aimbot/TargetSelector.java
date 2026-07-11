@@ -2,6 +2,7 @@ package alku.taczai.aimbot;
 
 import alku.taczai.Config;
 import alku.taczai.keybind.KeyMappings;
+import alku.taczai.teammate.TeammateManager;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -41,6 +42,8 @@ public class TargetSelector {
                 e -> e != player
                         && e.isAlive()
                         && e.distanceToSqr(player) <= range * range
+                        && !(e instanceof Player candidate && TeammateManager.isEffectiveTeammate(player, candidate))
+                        && isWithinFov(lookVec, e.getBoundingBox().getCenter().subtract(eyePos), Config.aimbotFov)
                         && hasLineOfSight(player, e)
         );
 
@@ -65,6 +68,12 @@ public class TargetSelector {
 
         Vec3 toTarget = targetCenter.subtract(eyePos).normalize();
         return 1.0 - direction.dot(toTarget);
+    }
+
+    static boolean isWithinFov(Vec3 lookDirection, Vec3 targetDirection, double maxDegrees) {
+        double dot = lookDirection.normalize().dot(targetDirection.normalize());
+        double angle = Math.toDegrees(Math.acos(Math.max(-1.0, Math.min(1.0, dot))));
+        return angle <= maxDegrees + 1.0e-7;
     }
 
     private static LivingEntity raytraceEntity(Player player) {
@@ -93,6 +102,7 @@ public class TargetSelector {
             LivingEntity living = (LivingEntity) entity;
             if (!living.isAlive()) continue;
             if (living == player) continue;
+            if (living instanceof Player candidate && TeammateManager.isEffectiveTeammate(player, candidate)) continue;
 
             AABB entityBox = living.getBoundingBox().inflate(0.3);
             Optional<Vec3> hitOpt = entityBox.clip(eyePos, finalEndPos);
@@ -117,6 +127,10 @@ public class TargetSelector {
 
         if (confirmedTarget == null) return null;
         if (!confirmedTarget.isAlive()) {
+            confirmedTarget = null;
+            return null;
+        }
+        if (confirmedTarget instanceof Player candidate && TeammateManager.isEffectiveTeammate(player, candidate)) {
             confirmedTarget = null;
             return null;
         }
