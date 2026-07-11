@@ -162,6 +162,11 @@ public class TargetSelector {
         return false;
     }
 
+    public static Player raytracePlayer(Player player) {
+        LivingEntity target = raytraceEntity(player);
+        return target instanceof Player candidate ? candidate : null;
+    }
+
     static List<Vec3> visibilityPoints(AABB box) {
         double height = box.getYsize();
         double epsilon = Math.min(1.0e-4, height * 0.1);
@@ -179,5 +184,9 @@ public class TargetSelector {
 
     public static void resetTarget() {
         confirmedTarget = null;
+    }
+
+    public static void resetIfTarget(LivingEntity target) {
+        if (confirmedTarget == target) confirmedTarget = null;
     }
 }

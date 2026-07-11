@@ -15,6 +15,7 @@ public class KeyMappings {
     private static final String KEY_CATEGORY = "key.category.taczai";
     private static final String KEY_TOGGLE_AIMBOT = "key.taczai.toggle_aimbot";
     private static final String KEY_SWITCH_MODE = "key.taczai.switch_mode";
+    private static final String KEY_SELECT_TARGET = "key.taczai.select_target";
 
     public static final KeyMapping TOGGLE_AIMBOT_KEY = new KeyMapping(
             KEY_TOGGLE_AIMBOT,
@@ -27,6 +28,13 @@ public class KeyMappings {
             KEY_SWITCH_MODE,
             InputConstants.Type.KEYSYM,
             GLFW.GLFW_KEY_H,
+            KEY_CATEGORY
+    );
+
+    public static final KeyMapping SELECT_TARGET_KEY = new KeyMapping(
+            KEY_SELECT_TARGET,
+            InputConstants.Type.KEYSYM,
+            GLFW.GLFW_KEY_V,
             KEY_CATEGORY
     );
 
@@ -47,6 +55,7 @@ public class KeyMappings {
     public static void registerKeys(RegisterKeyMappingsEvent event) {
         event.register(TOGGLE_AIMBOT_KEY);
         event.register(SWITCH_MODE_KEY);
+        event.register(SELECT_TARGET_KEY);
     }
 
     @SubscribeEvent
@@ -64,10 +73,9 @@ public class KeyMappings {
             aimMode = (aimMode == AimMode.MANUAL) ? AimMode.AUTO : AimMode.MANUAL;
             MinecraftForge.EVENT_BUS.post(new AimbotTargetChangedEvent(null));
         }
-    }
-
-    public static void onMiddleMouseClick() {
-        selectTargetPressed = true;
+        if (SELECT_TARGET_KEY.consumeClick()) {
+            selectTargetPressed = true;
+        }
     }
 
     public static void consumeSelectTarget() {
