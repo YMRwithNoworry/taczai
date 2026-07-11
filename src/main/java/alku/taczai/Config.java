@@ -1,9 +1,12 @@
 package alku.taczai;
 
+import alku.taczai.teammate.TeammateManager;
 import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.event.config.ModConfigEvent;
+
+import java.util.List;
 
 @Mod.EventBusSubscriber(modid = Taczai.MODID, bus = Mod.EventBusSubscriber.Bus.MOD)
 public class Config {
@@ -25,12 +28,22 @@ public class Config {
             .comment("Auto-fire when crosshair is on target (true) or manual fire only (false)")
             .define("autoFire", true);
 
+    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> TEAMMATE_UUIDS = BUILDER
+            .comment("Persistent local teammate UUIDs")
+            .defineListAllowEmpty("teammateUuids", List.of(), value -> value instanceof String);
+
+    private static final ForgeConfigSpec.ConfigValue<List<? extends String>> TEAMMATE_NAMES = BUILDER
+            .comment("Last-known teammate names encoded as UUID|name")
+            .defineListAllowEmpty("teammateNames", List.of(), value -> value instanceof String);
+
     static final ForgeConfigSpec SPEC = BUILDER.build();
 
     public static int aimbotRange;
     public static double aimSpeed;
     public static boolean aimAtHead;
     public static boolean autoFire;
+    public static List<String> teammateUuids = List.of();
+    public static List<String> teammateNames = List.of();
 
     @SubscribeEvent
     static void onLoad(final ModConfigEvent event) {
@@ -38,5 +51,16 @@ public class Config {
         aimSpeed = AIM_SPEED.get();
         aimAtHead = AIM_AT_HEAD.get();
         autoFire = AUTO_FIRE.get();
+        teammateUuids = List.copyOf(TEAMMATE_UUIDS.get());
+        teammateNames = List.copyOf(TEAMMATE_NAMES.get());
+        TeammateManager.loadFromConfig();
+    }
+
+    public static void saveTeammates(List<String> uuids, List<String> names) {
+        teammateUuids = List.copyOf(uuids);
+        teammateNames = List.copyOf(names);
+        TEAMMATE_UUIDS.set(teammateUuids);
+        TEAMMATE_NAMES.set(teammateNames);
+        SPEC.save();
     }
 }
