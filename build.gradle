@@ -139,8 +139,14 @@ dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
 
     // TACZ (Timeless and Classics Zero) - hard dependency
-    // Using TACZ 1.1.7-release for Minecraft 1.20.1 (CurseForge project 1028108, file 7278003)
-    compileOnly fg.deobf("curse.maven:timeless-and-classics-zero-1028108:7278003")
+    // Using TACZ 1.1.7-release for Minecraft 1.20.1 (CurseForge project 1028108, file 7278003).
+    // Supply -Ptacz_local_jar=<path> when CurseMaven is unavailable.
+    def taczLocalJar = findProperty('tacz_local_jar')
+    if (taczLocalJar) {
+        compileOnly files(taczLocalJar)
+    } else {
+        compileOnly fg.deobf("curse.maven:timeless-and-classics-zero-1028108:7278003")
+    }
     implementation fg.deobf("me.shedaniel.cloth:cloth-config-forge:11.1.136")
 
     testImplementation platform("org.junit:junit-bom:5.10.2")
