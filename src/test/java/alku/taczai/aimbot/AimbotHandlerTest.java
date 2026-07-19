@@ -8,17 +8,22 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class AimbotHandlerTest {
     @Test
     void autoFireStopsWhileReloading() {
-        assertFalse(AimbotHandler.shouldAutoFire(true, false, true));
+        assertFalse(AimbotHandler.shouldAutoFire(true, false, true, 0));
     }
 
     @Test
-    void autoFireStopsWhileGunStateIsLocked() {
-        assertFalse(AimbotHandler.shouldAutoFire(true, true, false));
+    void autoFireStopsWhileNonShootingGunStateIsLocked() {
+        assertFalse(AimbotHandler.shouldAutoFire(true, true, false, 0));
+    }
+
+    @Test
+    void autoFireLetsTaczHandleItsOwnShootCooldown() {
+        assertTrue(AimbotHandler.shouldAutoFire(true, true, false, 25));
     }
 
     @Test
     void autoFireNeedsCrosshairOnTarget() {
-        assertFalse(AimbotHandler.shouldAutoFire(false, false, false));
-        assertTrue(AimbotHandler.shouldAutoFire(true, false, false));
+        assertFalse(AimbotHandler.shouldAutoFire(false, false, false, 0));
+        assertTrue(AimbotHandler.shouldAutoFire(true, false, false, 0));
     }
 }

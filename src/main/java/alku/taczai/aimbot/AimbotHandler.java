@@ -45,10 +45,18 @@ public class AimbotHandler {
 
         float[] targetRot = RotationHelper.getTargetRotation(player, lockedTarget);
         RotationHelper.applySmoothRotation(player, targetRot[0], targetRot[1]);
+    }
 
-        if (Config.autoFire) {
-            handleAutoFire(player, lockedTarget);
-        }
+    @SubscribeEvent
+    public void onRenderTick(TickEvent.RenderTickEvent event) {
+        if (event.phase != TickEvent.Phase.END) return;
+        if (!KeyMappings.aimbotEnabled || !Config.autoFire || lockedTarget == null) return;
+
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null || mc.player == null || mc.screen != null) return;
+        if (!isHoldingTaczGun(mc.player)) return;
+
+        handleAutoFire(mc.player, lockedTarget);
     }
 
     private void handleAutoFire(Player player, LivingEntity target) {
@@ -59,14 +67,21 @@ public class AimbotHandler {
             IGunOperator gunOperator = IGunOperator.fromLivingEntity(localPlayer);
             boolean reloading = gunOperator.getSynReloadState().getStateType().isReloading();
             boolean stateLocked = operator.getDataHolder().clientStateLock;
-            if (!shouldAutoFire(isCrosshairOnTarget(player, target), stateLocked, reloading)) return;
+            long shootCooldown = operator.getClientShootCoolDown();
+            if (!shouldAutoFire(isCrosshairOnTarget(player, target), stateLocked, reloading, shootCooldown)) return;
 
             operator.shoot();
         }
     }
 
-    static boolean shouldAutoFire(boolean crosshairOnTarget, boolean stateLocked, boolean reloading) {
-        return crosshairOnTarget && !stateLocked && !reloading;
+    static boolean shouldAutoFire(
+            boolean crosshairOnTarget,
+            boolean stateLocked,
+            boolean reloading,
+            long shootCooldown
+    ) {
+        boolean blockingAction = stateLocked && shootCooldown <= 0;
+        return crosshairOnTarget && !blockingAction && !reloading;
     }
 
     private boolean isCrosshairOnTarget(Player player, LivingEntity target) {
