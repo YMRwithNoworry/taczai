@@ -11,7 +11,6 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.event.TickEvent;
@@ -71,12 +70,12 @@ public class AimbotHandler {
     }
 
     private boolean isCrosshairOnTarget(Player player, LivingEntity target) {
-        Vec3 eyePos = player.getEyePosition();
-        Vec3 lookVec = player.getLookAngle();
-        Vec3 toTarget = target.getEyePosition().subtract(eyePos).normalize();
-        double dot = lookVec.dot(toTarget);
-        double angleDeg = Math.toDegrees(Math.acos(Math.min(1.0, Math.max(-1.0, dot))));
-        return angleDeg < FIRE_ANGLE_THRESHOLD;
+        return TargetSelector.isBoxWithinFov(
+                player.getEyePosition(),
+                player.getLookAngle(),
+                target.getBoundingBox(),
+                FIRE_ANGLE_THRESHOLD
+        );
     }
 
     @SubscribeEvent

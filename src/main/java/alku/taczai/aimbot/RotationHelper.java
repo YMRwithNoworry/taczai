@@ -11,7 +11,7 @@ public class RotationHelper {
 
     public static float[] getTargetRotation(Player player, LivingEntity target) {
         Vec3 playerPos = player.getEyePosition();
-        Vec3 targetPos = targetPoint(target.getBoundingBox(), Config.aimAtHead);
+        Vec3 targetPos = TargetSelector.visibleAimPoint(player, target, Config.aimAtHead);
 
         double dx = targetPos.x - playerPos.x;
         double dy = targetPos.y - playerPos.y;
@@ -35,7 +35,7 @@ public class RotationHelper {
 
         double height = box.getYsize();
         double epsilon = Math.min(1.0e-4, height * 0.1);
-        double y = Math.min(box.maxY - epsilon, box.minY + height * 0.8);
+        double y = Math.min(box.maxY - epsilon, box.minY + height * 0.9);
         return new Vec3(
                 (box.minX + box.maxX) * 0.5,
                 y,

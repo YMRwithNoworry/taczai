@@ -35,7 +35,7 @@ public class TargetSelector {
                         && e.isAlive()
                         && e.distanceToSqr(player) <= range * range
                         && !(e instanceof Player candidate && TeammateManager.isEffectiveTeammate(player, candidate))
-                        && isWithinFov(lookVec, e.getBoundingBox().getCenter().subtract(eyePos), Config.aimbotFov)
+                        && isBoxWithinFov(eyePos, lookVec, e.getBoundingBox(), Config.aimbotFov)
                         && hasLineOfSight(player, e)
         );
 
@@ -63,9 +63,26 @@ public class TargetSelector {
     }
 
     static boolean isWithinFov(Vec3 lookDirection, Vec3 targetDirection, double maxDegrees) {
+        if (targetDirection.lengthSqr() < 1.0e-12) return true;
+        if (lookDirection.lengthSqr() < 1.0e-12) return false;
+
         double dot = lookDirection.normalize().dot(targetDirection.normalize());
         double angle = Math.toDegrees(Math.acos(Math.max(-1.0, Math.min(1.0, dot))));
         return angle <= maxDegrees + 1.0e-7;
+    }
+
+    static boolean isBoxWithinFov(Vec3 eyePos, Vec3 lookDirection, AABB targetBox, double maxDegrees) {
+        if (targetBox.contains(eyePos)) return true;
+        if (lookDirection.lengthSqr() < 1.0e-12) return false;
+
+        Vec3 direction = lookDirection.normalize();
+        double rayLength = eyePos.distanceTo(targetBox.getCenter()) + targetBox.getSize() + 1.0;
+        if (targetBox.clip(eyePos, eyePos.add(direction.scale(rayLength))).isPresent()) {
+            return true;
+        }
+
+        return visibilityPoints(targetBox).stream()
+                .anyMatch(point -> isWithinFov(lookDirection, point.subtract(eyePos), maxDegrees));
     }
 
     private static LivingEntity raytraceEntity(Player player, boolean excludeTeammates) {
@@ -116,21 +133,31 @@ public class TargetSelector {
     }
 
     public static boolean hasLineOfSight(Player player, LivingEntity target) {
-        Vec3 from = player.getEyePosition();
         for (Vec3 to : visibilityPoints(target.getBoundingBox())) {
-            ClipContext context = new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player);
-            HitResult result = player.level().clip(context);
-            if (result.getType() != HitResult.Type.BLOCK) {
-                return true;
-            }
-
-            double blockDist = result.getLocation().distanceToSqr(from);
-            double targetDist = to.distanceToSqr(from);
-            if (blockDist >= targetDist - 1.0) {
-                return true;
-            }
+            if (isPointVisible(player, to)) return true;
         }
         return false;
+    }
+
+    static Vec3 visibleAimPoint(Player player, LivingEntity target, boolean preferHead) {
+        List<Vec3> points = visibilityPoints(target.getBoundingBox());
+        int[] order = preferHead ? new int[]{0, 1, 2} : new int[]{1, 0, 2};
+        for (int index : order) {
+            Vec3 point = points.get(index);
+            if (isPointVisible(player, point)) return point;
+        }
+        return preferHead ? points.get(0) : points.get(1);
+    }
+
+    private static boolean isPointVisible(Player player, Vec3 to) {
+        Vec3 from = player.getEyePosition();
+        ClipContext context = new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player);
+        HitResult result = player.level().clip(context);
+        if (result.getType() != HitResult.Type.BLOCK) return true;
+
+        double blockDist = result.getLocation().distanceToSqr(from);
+        double targetDist = to.distanceToSqr(from);
+        return blockDist >= targetDist - 1.0;
     }
 
     public static Player raytracePlayer(Player player) {
@@ -142,13 +169,13 @@ public class TargetSelector {
         double height = box.getYsize();
         double epsilon = Math.min(1.0e-4, height * 0.1);
         double lowerY = Math.max(box.minY + epsilon, box.minY + height * 0.2);
-        double upperY = Math.min(box.maxY - epsilon, box.minY + height * 0.8);
+        double headY = Math.min(box.maxY - epsilon, box.minY + height * 0.9);
         double centerX = (box.minX + box.maxX) * 0.5;
         double centerZ = (box.minZ + box.maxZ) * 0.5;
 
         return List.of(
+                new Vec3(centerX, headY, centerZ),
                 box.getCenter(),
-                new Vec3(centerX, upperY, centerZ),
                 new Vec3(centerX, lowerY, centerZ)
         );
     }
