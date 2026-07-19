@@ -14,8 +14,6 @@ import org.lwjgl.glfw.GLFW;
 public class KeyMappings {
     private static final String KEY_CATEGORY = "key.category.taczai";
     private static final String KEY_TOGGLE_AIMBOT = "key.taczai.toggle_aimbot";
-    private static final String KEY_SWITCH_MODE = "key.taczai.switch_mode";
-    private static final String KEY_SELECT_TARGET = "key.taczai.select_target";
 
     public static final KeyMapping TOGGLE_AIMBOT_KEY = new KeyMapping(
             KEY_TOGGLE_AIMBOT,
@@ -24,29 +22,7 @@ public class KeyMappings {
             KEY_CATEGORY
     );
 
-    public static final KeyMapping SWITCH_MODE_KEY = new KeyMapping(
-            KEY_SWITCH_MODE,
-            InputConstants.Type.KEYSYM,
-            GLFW.GLFW_KEY_H,
-            KEY_CATEGORY
-    );
-
-    public static final KeyMapping SELECT_TARGET_KEY = new KeyMapping(
-            KEY_SELECT_TARGET,
-            InputConstants.Type.KEYSYM,
-            GLFW.GLFW_KEY_V,
-            KEY_CATEGORY
-    );
-
     public static boolean aimbotEnabled = false;
-    public static boolean selectTargetPressed = false;
-
-    public enum AimMode {
-        MANUAL,
-        AUTO
-    }
-
-    public static AimMode aimMode = AimMode.MANUAL;
 
     public static void register() {
         MinecraftForge.EVENT_BUS.register(new KeyMappings());
@@ -54,8 +30,6 @@ public class KeyMappings {
 
     public static void registerKeys(RegisterKeyMappingsEvent event) {
         event.register(TOGGLE_AIMBOT_KEY);
-        event.register(SWITCH_MODE_KEY);
-        event.register(SELECT_TARGET_KEY);
     }
 
     @SubscribeEvent
@@ -69,16 +43,5 @@ public class KeyMappings {
             }
         }
 
-        if (SWITCH_MODE_KEY.consumeClick()) {
-            aimMode = (aimMode == AimMode.MANUAL) ? AimMode.AUTO : AimMode.MANUAL;
-            MinecraftForge.EVENT_BUS.post(new AimbotTargetChangedEvent(null));
-        }
-        if (SELECT_TARGET_KEY.consumeClick()) {
-            selectTargetPressed = true;
-        }
-    }
-
-    public static void consumeSelectTarget() {
-        selectTargetPressed = false;
     }
 }

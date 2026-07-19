@@ -48,16 +48,8 @@ public class AimbotOverlay {
         guiGraphics.drawString(font, statusText, rightX - font.width(statusText), y, 0x55FF55);
 
         y += 12;
-        String modeStr = KeyMappings.aimMode == KeyMappings.AimMode.AUTO ? "AUTO" : "MANUAL";
-        String modeText = "Mode: " + modeStr + " [" + KeyMappings.SWITCH_MODE_KEY.getTranslatedKeyMessage().getString() + "]";
-        int modeColor = KeyMappings.aimMode == KeyMappings.AimMode.AUTO ? 0xFF5555 : 0x55FFFF;
-        guiGraphics.drawString(font, modeText, rightX - font.width(modeText), y, modeColor);
-
-        if (KeyMappings.aimMode == KeyMappings.AimMode.MANUAL) {
-            y += 12;
-            String midText = "Select: [Mouse Middle]";
-            guiGraphics.drawString(font, midText, rightX - font.width(midText), y, 0x55FFFF);
-        }
+        String fovText = String.format("FOV: %.1f deg", Config.aimbotFov);
+        guiGraphics.drawString(font, fovText, rightX - font.width(fovText), y, 0x55FFFF);
 
         if (Config.autoFire) {
             y += 12;
@@ -102,10 +94,6 @@ public class AimbotOverlay {
                 String info = "Target: " + name;
                 guiGraphics.drawString(font, info, rightX - font.width(info), y, 0xFFFF55);
             }
-        } else if (KeyMappings.aimMode == KeyMappings.AimMode.MANUAL) {
-            y += 12;
-            String hint = "Look at enemy + Middle Click";
-            guiGraphics.drawString(font, hint, rightX - font.width(hint), y, 0xAAAAAA);
         }
     }
 }

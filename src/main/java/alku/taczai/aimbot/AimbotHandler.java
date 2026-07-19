@@ -31,13 +31,6 @@ public class AimbotHandler {
 
         Player player = mc.player;
 
-        if (KeyMappings.aimMode == KeyMappings.AimMode.MANUAL && KeyMappings.selectTargetPressed) {
-            KeyMappings.consumeSelectTarget();
-            TargetSelector.confirmTarget(player);
-        } else {
-            KeyMappings.consumeSelectTarget();
-        }
-
         if (!isHoldingTaczGun(player)) {
             lockedTarget = null;
             return;

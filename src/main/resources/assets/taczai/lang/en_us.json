@@ -1,8 +1,6 @@
 {
     "key.category.taczai": "TaczAI - Auto Aim",
     "key.taczai.toggle_aimbot": "Toggle Auto Aim",
-    "key.taczai.switch_mode": "Switch Aim Mode (Manual/Auto)",
-    "key.taczai.select_target": "Select Manual Aim Target",
     "message.taczai.teammate_added": "Added %s as a permanent teammate",
     "message.taczai.teammate_removed": "Removed %s from permanent teammates",
     "config.taczai.title": "TaczAI Configuration",

@@ -1,7 +1,6 @@
 package alku.taczai.aimbot;
 
 import alku.taczai.Config;
-import alku.taczai.keybind.KeyMappings;
 import alku.taczai.teammate.TeammateManager;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -20,13 +19,6 @@ public class TargetSelector {
 
     public static LivingEntity getConfirmedTarget() {
         return confirmedTarget;
-    }
-
-    public static void confirmTarget(Player player) {
-        if (player == null || player.level() == null) return;
-        LivingEntity target = raytraceEntity(player, true);
-        if (target == null) return;
-        confirmedTarget = target;
     }
 
     public static LivingEntity findAutoTarget(Player player) {
@@ -119,28 +111,7 @@ public class TargetSelector {
     }
 
     public static LivingEntity getActiveTarget(Player player) {
-        if (KeyMappings.aimMode == KeyMappings.AimMode.AUTO) {
-            LivingEntity autoTarget = findAutoTarget(player);
-            confirmedTarget = autoTarget;
-            return autoTarget;
-        }
-
-        if (confirmedTarget == null) return null;
-        if (!confirmedTarget.isAlive()) {
-            confirmedTarget = null;
-            return null;
-        }
-        if (confirmedTarget instanceof Player candidate && TeammateManager.isEffectiveTeammate(player, candidate)) {
-            confirmedTarget = null;
-            return null;
-        }
-        if (confirmedTarget.distanceToSqr(player) > Config.aimbotRange * Config.aimbotRange) {
-            confirmedTarget = null;
-            return null;
-        }
-        if (!hasLineOfSight(player, confirmedTarget)) {
-            return null;
-        }
+        confirmedTarget = findAutoTarget(player);
         return confirmedTarget;
     }
 
@@ -180,10 +151,6 @@ public class TargetSelector {
                 new Vec3(centerX, upperY, centerZ),
                 new Vec3(centerX, lowerY, centerZ)
         );
-    }
-
-    public static void resetTarget() {
-        confirmedTarget = null;
     }
 
     public static void resetIfTarget(LivingEntity target) {
