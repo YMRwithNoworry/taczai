@@ -5,7 +5,6 @@ import alku.taczai.teammate.TeammateManager;
 import me.shedaniel.clothconfig2.api.ConfigBuilder;
 import me.shedaniel.clothconfig2.api.ConfigCategory;
 import me.shedaniel.clothconfig2.api.ConfigEntryBuilder;
-import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -66,8 +65,7 @@ public final class TaczaiConfigScreen {
                 .forEach(uuid -> {
                     String name = teammateNames.getOrDefault(uuid, "");
                     boolean online = onlinePlayers.containsKey(uuid);
-                    Component label = Component.literal(name.isBlank() ? uuid.toString() : name)
-                            .withStyle(selectedTeammates.contains(uuid) ? ChatFormatting.GREEN : ChatFormatting.WHITE);
+                    Component label = Component.literal(name.isBlank() ? uuid.toString() : name);
                     Component tooltip = Component.literal(uuid.toString())
                             .append(Component.literal("\n"))
                             .append(Component.translatable(online ? "config.taczai.player_online" : "config.taczai.player_offline"));

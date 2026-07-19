@@ -87,7 +87,7 @@ public final class TeammateManager {
     }
 
     public static boolean isEffectiveTeammate(Player local, Player candidate) {
-        return candidate != local && (isLocalTeammate(candidate.getUUID()) || local.isAlliedTo(candidate));
+        return candidate != local && isLocalTeammate(candidate.getUUID());
     }
 
     public static Map<UUID, String> getSavedNames() {
