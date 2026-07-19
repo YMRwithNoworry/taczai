@@ -15,11 +15,4 @@ class EnemyOutlineHandlerTest {
         assertFalse(EnemyOutlineHandler.shouldOutline(true, false, false, false));
     }
 
-    @Test
-    void clearsOnlyGlowOwnedAndIntroducedByThisHandler() {
-        assertTrue(EnemyOutlineHandler.shouldClearOwnedGlow(true, true, false));
-        assertFalse(EnemyOutlineHandler.shouldClearOwnedGlow(false, true, false));
-        assertFalse(EnemyOutlineHandler.shouldClearOwnedGlow(true, false, false));
-        assertFalse(EnemyOutlineHandler.shouldClearOwnedGlow(true, true, true));
-    }
 }

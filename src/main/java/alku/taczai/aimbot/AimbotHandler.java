@@ -4,7 +4,7 @@ import alku.taczai.Config;
 import alku.taczai.keybind.AimbotTargetChangedEvent;
 import alku.taczai.keybind.KeyMappings;
 import com.tacz.guns.api.client.gameplay.IClientPlayerGunOperator;
-import com.tacz.guns.api.entity.ShootResult;
+import com.tacz.guns.api.entity.IGunOperator;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.world.entity.EquipmentSlot;
@@ -48,19 +48,26 @@ public class AimbotHandler {
         RotationHelper.applySmoothRotation(player, targetRot[0], targetRot[1]);
 
         if (Config.autoFire) {
-            handleAutoFire(mc, player, lockedTarget);
+            handleAutoFire(player, lockedTarget);
         }
     }
 
-    private void handleAutoFire(Minecraft mc, Player player, LivingEntity target) {
-        if (!isCrosshairOnTarget(player, target)) return;
-
+    private void handleAutoFire(Player player, LivingEntity target) {
         if (player instanceof LocalPlayer localPlayer) {
             IClientPlayerGunOperator operator = IClientPlayerGunOperator.fromLocalPlayer(localPlayer);
-            if (operator != null) {
-                ShootResult result = operator.shoot();
-            }
+            if (operator == null) return;
+
+            IGunOperator gunOperator = IGunOperator.fromLivingEntity(localPlayer);
+            boolean reloading = gunOperator.getSynReloadState().getStateType().isReloading();
+            boolean stateLocked = operator.getDataHolder().clientStateLock;
+            if (!shouldAutoFire(isCrosshairOnTarget(player, target), stateLocked, reloading)) return;
+
+            operator.shoot();
         }
+    }
+
+    static boolean shouldAutoFire(boolean crosshairOnTarget, boolean stateLocked, boolean reloading) {
+        return crosshairOnTarget && !stateLocked && !reloading;
     }
 
     private boolean isCrosshairOnTarget(Player player, LivingEntity target) {
