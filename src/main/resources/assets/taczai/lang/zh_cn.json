@@ -12,7 +12,10 @@
     "config.taczai.fov": "FOV角度",
     "config.taczai.head": "瞄准头部",
     "config.taczai.autofire": "自动开火",
-    "config.taczai.teammates": "永久队友（选择移除）",
-    "config.taczai.remove_yes": "保存时移除",
-    "config.taczai.remove_no": "保留"
+    "config.taczai.teammates": "队友管理",
+    "config.taczai.teammate_yes": "队友",
+    "config.taczai.teammate_no": "非队友",
+    "config.taczai.player_online": "在线玩家",
+    "config.taczai.player_offline": "已保存的离线玩家",
+    "config.taczai.teammates_empty": "当前没有可配置的玩家"
 }

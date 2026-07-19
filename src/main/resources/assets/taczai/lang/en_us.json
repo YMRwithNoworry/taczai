@@ -12,7 +12,10 @@
     "config.taczai.fov": "FOV Angle",
     "config.taczai.head": "Aim at Head",
     "config.taczai.autofire": "Auto Fire",
-    "config.taczai.teammates": "Permanent Teammates (select to remove)",
-    "config.taczai.remove_yes": "Remove on save",
-    "config.taczai.remove_no": "Keep"
+    "config.taczai.teammates": "Teammate Management",
+    "config.taczai.teammate_yes": "Teammate",
+    "config.taczai.teammate_no": "Not Teammate",
+    "config.taczai.player_online": "Online player",
+    "config.taczai.player_offline": "Saved offline player",
+    "config.taczai.teammates_empty": "There are no players to configure"
 }

@@ -70,6 +70,18 @@ public final class TeammateManager {
         return added;
     }
 
+    public static void replaceAndSave(Collection<UUID> uuids, Map<UUID, String> names) {
+        replace(uuids, names);
+        save();
+    }
+
+    static void replace(Collection<UUID> uuids, Map<UUID, String> names) {
+        TEAMMATES.clear();
+        TEAMMATES.addAll(uuids);
+        NAMES.clear();
+        uuids.forEach(uuid -> NAMES.put(uuid, names.getOrDefault(uuid, "")));
+    }
+
     public static boolean isLocalTeammate(UUID uuid) {
         return TEAMMATES.contains(uuid);
     }

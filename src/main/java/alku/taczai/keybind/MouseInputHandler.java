@@ -23,11 +23,12 @@ public class MouseInputHandler {
     public void onMouseButton(InputEvent.MouseButton.Pre event) {
         if (event.getButton() == GLFW.GLFW_MOUSE_BUTTON_MIDDLE && event.getAction() == GLFW.GLFW_PRESS) {
             Minecraft minecraft = Minecraft.getInstance();
-            if (minecraft.player == null) return;
+            if (minecraft.player == null || minecraft.screen != null) return;
 
             Player target = TargetSelector.raytracePlayer(minecraft.player);
             if (target == null) return;
 
+            event.setCanceled(true);
             boolean added = TeammateManager.toggleAndSave(target);
             TargetSelector.resetIfTarget(target);
             String key = added ? "message.taczai.teammate_added" : "message.taczai.teammate_removed";
