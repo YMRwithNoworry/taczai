@@ -19,7 +19,6 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 @OnlyIn(Dist.CLIENT)
 public class AimbotHandler {
     private LivingEntity lockedTarget = null;
-    private static final double FIRE_ANGLE_THRESHOLD = 5.0;
 
     @SubscribeEvent
     public void onClientTick(TickEvent.ClientTickEvent event) {
@@ -68,29 +67,21 @@ public class AimbotHandler {
             boolean reloading = gunOperator.getSynReloadState().getStateType().isReloading();
             boolean stateLocked = operator.getDataHolder().clientStateLock;
             long shootCooldown = operator.getClientShootCoolDown();
-            if (!shouldAutoFire(isCrosshairOnTarget(player, target), stateLocked, reloading, shootCooldown)) return;
+            boolean nextShotHitsTarget = TargetSelector.willNextShotHitTarget(player, target);
+            if (!shouldAutoFire(nextShotHitsTarget, stateLocked, reloading, shootCooldown)) return;
 
             operator.shoot();
         }
     }
 
     static boolean shouldAutoFire(
-            boolean crosshairOnTarget,
+            boolean nextShotHitsTarget,
             boolean stateLocked,
             boolean reloading,
             long shootCooldown
     ) {
         boolean blockingAction = stateLocked && shootCooldown <= 0;
-        return crosshairOnTarget && !blockingAction && !reloading;
-    }
-
-    private boolean isCrosshairOnTarget(Player player, LivingEntity target) {
-        return TargetSelector.isBoxWithinFov(
-                player.getEyePosition(),
-                player.getLookAngle(),
-                target.getBoundingBox(),
-                FIRE_ANGLE_THRESHOLD
-        );
+        return nextShotHitsTarget && !blockingAction && !reloading;
     }
 
     @SubscribeEvent

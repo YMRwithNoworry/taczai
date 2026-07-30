@@ -139,6 +139,41 @@ public class TargetSelector {
         return false;
     }
 
+    /**
+     * Checks the exact ray used by the next shot rather than a loose aim cone.
+     * A target behind a block is rejected even when its hit box is near the crosshair.
+     */
+    public static boolean willNextShotHitTarget(Player player, LivingEntity target) {
+        if (player == null || target == null || player.level() == null || !target.isAlive()) return false;
+
+        Vec3 from = player.getEyePosition();
+        Vec3 direction = player.getLookAngle();
+        double range = Math.max(0.0, Config.aimbotRange);
+        AABB predictedTargetBox = RotationHelper.predictTargetBox(player, target);
+        Optional<Vec3> targetHit = rayBoxIntersection(from, direction, predictedTargetBox, range);
+        if (targetHit.isEmpty()) return false;
+
+        Vec3 to = from.add(direction.normalize().scale(range));
+
+        HitResult blockHit = player.level().clip(new ClipContext(
+                from,
+                to,
+                ClipContext.Block.COLLIDER,
+                ClipContext.Fluid.NONE,
+                player
+        ));
+        if (blockHit.getType() == HitResult.Type.MISS) return true;
+
+        double targetDistance = targetHit.get().distanceToSqr(from);
+        double blockDistance = blockHit.getLocation().distanceToSqr(from);
+        return blockDistance >= targetDistance - 1.0e-7;
+    }
+
+    static Optional<Vec3> rayBoxIntersection(Vec3 from, Vec3 direction, AABB box, double range) {
+        if (direction.lengthSqr() < 1.0e-12 || range <= 0.0) return Optional.empty();
+        return box.clip(from, from.add(direction.normalize().scale(range)));
+    }
+
     static Vec3 visibleAimPoint(Player player, LivingEntity target, boolean preferHead) {
         List<Vec3> points = visibilityPoints(target.getBoundingBox());
         int[] order = preferHead ? new int[]{0, 1, 2} : new int[]{1, 0, 2};

@@ -22,7 +22,7 @@ class AimbotHandlerTest {
     }
 
     @Test
-    void autoFireNeedsCrosshairOnTarget() {
+    void autoFireRequiresTheNextShotToHitTheTarget() {
         assertFalse(AimbotHandler.shouldAutoFire(false, false, false, 0));
         assertTrue(AimbotHandler.shouldAutoFire(true, false, false, 0));
     }

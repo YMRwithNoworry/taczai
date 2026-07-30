@@ -38,11 +38,24 @@ public class RotationHelper {
 
     static Vec3 predictTargetPoint(Player player, LivingEntity target) {
         Vec3 targetPoint = TargetSelector.visibleAimPoint(player, target, Config.aimAtHead);
+        return targetPoint.add(predictionOffset(player, target, targetPoint));
+    }
+
+    static AABB predictTargetBox(Player player, LivingEntity target) {
+        Vec3 targetPoint = TargetSelector.visibleAimPoint(player, target, Config.aimAtHead);
+        return moveTargetBox(target.getBoundingBox(), predictionOffset(player, target, targetPoint));
+    }
+
+    static AABB moveTargetBox(AABB targetBox, Vec3 predictionOffset) {
+        return targetBox.move(predictionOffset);
+    }
+
+    private static Vec3 predictionOffset(Player player, LivingEntity target, Vec3 targetPoint) {
         double distance = player.getEyePosition().distanceTo(targetPoint);
         double bulletSpeed = getBulletSpeed(player);
         double flightTicks = Math.min(MAX_PREDICTION_TICKS, distance / bulletSpeed);
         Vec3 relativeVelocity = target.getDeltaMovement().subtract(player.getDeltaMovement());
-        return leadTarget(targetPoint, relativeVelocity, flightTicks);
+        return relativeVelocity.scale(Math.max(0.0, flightTicks));
     }
 
     static Vec3 leadTarget(Vec3 targetPoint, Vec3 relativeVelocity, double flightTicks) {

@@ -29,6 +29,14 @@ class RotationHelperTest {
     }
 
     @Test
+    void predictedHitBoxUsesTheSameLeadOffset() {
+        AABB currentBox = new AABB(-0.3, 0.0, 20.0, 0.3, 1.8, 20.6);
+        Vec3 offset = new Vec3(1.0, 0.0, -0.5);
+
+        assertEquals(currentBox.move(offset), RotationHelper.moveTargetBox(currentBox, offset));
+    }
+
+    @Test
     void aimStrengthCorrectsMoreThanTheOriginalLinearSmoothing() {
         float strengthened = RotationHelper.smoothAngle(0.0F, 90.0F, 0.3F);
         float original = 90.0F * (1.0F - 0.3F);
