@@ -26,4 +26,11 @@ class AimbotHandlerTest {
         assertFalse(AimbotHandler.shouldAutoFire(false, false, false, 0));
         assertTrue(AimbotHandler.shouldAutoFire(true, false, false, 0));
     }
+
+    @Test
+    void intentionalMissCanBeFiredOnlyWhenOtherActionsAreReady() {
+        assertTrue(AimbotHandler.shouldAutoFire(false, true, false, false, 0));
+        assertFalse(AimbotHandler.shouldAutoFire(false, true, true, false, 0));
+        assertFalse(AimbotHandler.shouldAutoFire(false, true, false, true, 0));
+    }
 }

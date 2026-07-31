@@ -5,6 +5,7 @@ import alku.taczai.keybind.AimbotTargetChangedEvent;
 import alku.taczai.keybind.KeyMappings;
 import com.tacz.guns.api.client.gameplay.IClientPlayerGunOperator;
 import com.tacz.guns.api.entity.IGunOperator;
+import com.tacz.guns.api.entity.ShootResult;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
@@ -20,6 +21,8 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 @OnlyIn(Dist.CLIENT)
 public class AimbotHandler {
     private LivingEntity lockedTarget = null;
+    private LivingEntity decisionTarget = null;
+    private AimDecision aimDecision = null;
     private boolean forcedAim = false;
 
     @SubscribeEvent
@@ -28,39 +31,67 @@ public class AimbotHandler {
 
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) {
+            clearAimDecision();
             forcedAim = false;
             return;
         }
-        if (mc.level == null) return;
+        if (mc.level == null) {
+            lockedTarget = null;
+            clearAimDecision();
+            updateForcedAim(mc.player, false);
+            return;
+        }
 
         Player player = mc.player;
 
         if (!isHoldingTaczGun(player)) {
             lockedTarget = null;
+            clearAimDecision();
             updateForcedAim(mc.player, false);
             return;
         }
 
         if (!KeyMappings.aimbotEnabled) {
             lockedTarget = null;
+            clearAimDecision();
             updateForcedAim(mc.player, false);
             return;
         }
 
-        lockedTarget = TargetSelector.getActiveTarget(player);
+        if (!TargetSelector.isTrackableTarget(player, lockedTarget)) {
+            lockedTarget = TargetSelector.getActiveTarget(player);
+        }
         if (lockedTarget == null) {
+            clearAimDecision();
             updateForcedAim(mc.player, false);
             return;
         }
 
+        AimDecision decision = getAimDecision(lockedTarget);
         updateForcedAim(mc.player, Config.autoFire);
 
-        float[] targetRot = RotationHelper.getTargetRotation(player, lockedTarget);
+        float[] targetRot = RotationHelper.getTargetRotation(player, lockedTarget, decision);
         RotationHelper.applySmoothRotation(player, targetRot[0], targetRot[1]);
-        if (Config.autoFire && mc.screen == null) handleAutoFire(player, lockedTarget);
+        if (Config.autoFire && mc.screen == null) handleAutoFire(player, lockedTarget, decision, targetRot);
     }
 
-    private void handleAutoFire(Player player, LivingEntity target) {
+    private AimDecision getAimDecision(LivingEntity target) {
+        double configuredMissRate = Config.autoFire ? Config.missRate : 0.0;
+        if (aimDecision == null
+                || decisionTarget != target
+                || !aimDecision.matches(Config.aimAtHead, Config.headshotRate, configuredMissRate)) {
+            aimDecision = AimDecision.sample(Config.aimAtHead, Config.headshotRate, configuredMissRate);
+            decisionTarget = target;
+        }
+        return aimDecision;
+    }
+
+    private void clearAimDecision() {
+        aimDecision = null;
+        decisionTarget = null;
+    }
+
+    private void handleAutoFire(Player player, LivingEntity target, AimDecision decision, float[] targetRotation) {
         if (player instanceof LocalPlayer localPlayer) {
             IClientPlayerGunOperator operator = IClientPlayerGunOperator.fromLocalPlayer(localPlayer);
             if (operator == null) return;
@@ -69,11 +100,16 @@ public class AimbotHandler {
             boolean reloading = gunOperator.getSynReloadState().getStateType().isReloading();
             boolean stateLocked = operator.getDataHolder().clientStateLock;
             long shootCooldown = operator.getClientShootCoolDown();
-            boolean nextShotHitsTarget = TargetSelector.willNextShotHitTarget(player, target);
-            if (!shouldAutoFire(nextShotHitsTarget, stateLocked, reloading, shootCooldown)) return;
+            if (decision.intentionalMiss() && !RotationHelper.isAligned(player, targetRotation, 2.0F)) return;
+
+            boolean nextShotHitsTarget = decision.intentionalMiss()
+                    ? TargetSelector.hasClearShot(player)
+                    : TargetSelector.willNextShotHitTarget(player, target);
+            if (!shouldAutoFire(nextShotHitsTarget, decision.intentionalMiss(), stateLocked, reloading, shootCooldown)) return;
 
             syncAimToServer(localPlayer);
-            operator.shoot();
+            ShootResult result = operator.shoot();
+            if (result == ShootResult.SUCCESS) clearAimDecision();
         }
     }
 
@@ -107,14 +143,25 @@ public class AimbotHandler {
             boolean reloading,
             long shootCooldown
     ) {
+        return shouldAutoFire(nextShotHitsTarget, false, stateLocked, reloading, shootCooldown);
+    }
+
+    static boolean shouldAutoFire(
+            boolean nextShotHitsTarget,
+            boolean intentionalMiss,
+            boolean stateLocked,
+            boolean reloading,
+            long shootCooldown
+    ) {
         boolean blockingAction = stateLocked && shootCooldown <= 0;
-        return nextShotHitsTarget && !blockingAction && !reloading;
+        return (nextShotHitsTarget || intentionalMiss) && !blockingAction && !reloading;
     }
 
     @SubscribeEvent
     public void onTargetChanged(AimbotTargetChangedEvent event) {
         if (event.getTarget() == null) {
             lockedTarget = null;
+            clearAimDecision();
         }
     }
 

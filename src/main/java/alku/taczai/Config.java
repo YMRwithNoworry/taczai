@@ -32,6 +32,14 @@ public class Config {
             .comment("Auto-fire when crosshair is on target (true) or manual fire only (false)")
             .define("autoFire", true);
 
+    private static final ForgeConfigSpec.DoubleValue HEADSHOT_RATE = BUILDER
+            .comment("Chance for automatic aim to select the target head, in percent")
+            .defineInRange("headshotRate", 100.0, 0.0, 100.0);
+
+    private static final ForgeConfigSpec.DoubleValue MISS_RATE = BUILDER
+            .comment("Chance for automatic fire to deliberately offset its aim, in percent; this explicitly allows a miss")
+            .defineInRange("missRate", 0.0, 0.0, 100.0);
+
     private static final ForgeConfigSpec.ConfigValue<List<? extends String>> TEAMMATE_UUIDS = BUILDER
             .comment("Persistent local teammate UUIDs")
             .defineListAllowEmpty("teammateUuids", List.of(), value -> value instanceof String);
@@ -47,6 +55,8 @@ public class Config {
     public static double aimbotFov;
     public static boolean aimAtHead;
     public static boolean autoFire;
+    public static double headshotRate = 100.0;
+    public static double missRate = 0.0;
     public static List<String> teammateUuids = List.of();
     public static List<String> teammateNames = List.of();
 
@@ -57,6 +67,8 @@ public class Config {
         aimbotFov = AIMBOT_FOV.get();
         aimAtHead = AIM_AT_HEAD.get();
         autoFire = AUTO_FIRE.get();
+        headshotRate = HEADSHOT_RATE.get();
+        missRate = MISS_RATE.get();
         teammateUuids = List.copyOf(TEAMMATE_UUIDS.get());
         teammateNames = List.copyOf(TEAMMATE_NAMES.get());
         TeammateManager.loadFromConfig();
@@ -71,16 +83,39 @@ public class Config {
     }
 
     public static void updateAiming(int range, double speed, double fov, boolean head, boolean fire) {
+        updateAiming(range, speed, fov, head, fire, headshotRate, missRate);
+    }
+
+    public static void updateAiming(
+            int range,
+            double speed,
+            double fov,
+            boolean head,
+            boolean fire,
+            double configuredHeadshotRate,
+            double configuredMissRate
+    ) {
+        double safeHeadshotRate = clampPercentage(configuredHeadshotRate);
+        double safeMissRate = clampPercentage(configuredMissRate);
         AIMBOT_RANGE.set(range);
         AIM_SPEED.set(speed);
         AIMBOT_FOV.set(fov);
         AIM_AT_HEAD.set(head);
         AUTO_FIRE.set(fire);
+        HEADSHOT_RATE.set(safeHeadshotRate);
+        MISS_RATE.set(safeMissRate);
         aimbotRange = range;
         aimSpeed = speed;
         aimbotFov = fov;
         aimAtHead = head;
         autoFire = fire;
+        headshotRate = safeHeadshotRate;
+        missRate = safeMissRate;
         SPEC.save();
+    }
+
+    static double clampPercentage(double value) {
+        if (!Double.isFinite(value)) return 0.0;
+        return Math.max(0.0, Math.min(100.0, value));
     }
 }

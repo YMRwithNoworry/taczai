@@ -132,11 +132,38 @@ public class TargetSelector {
         return confirmedTarget;
     }
 
+    /**
+     * A locked target may be outside the original FOV after an intentional
+     * miss offset is applied. Keep it locked while it remains a visible, valid
+     * target instead of reacquiring or dropping it every tick.
+     */
+    public static boolean isTrackableTarget(Player player, LivingEntity target) {
+        if (player == null || target == null || player.level() == null || !target.isAlive()) return false;
+        double range = Math.max(0.0, Config.aimbotRange);
+        if (target.distanceToSqr(player) > range * range) return false;
+        if (target instanceof Player candidate && TeammateManager.isEffectiveTeammate(player, candidate)) return false;
+        return hasLineOfSight(player, target);
+    }
+
     public static boolean hasLineOfSight(Player player, LivingEntity target) {
         for (Vec3 to : visibilityPoints(target.getBoundingBox())) {
             if (isPointVisible(player, to)) return true;
         }
         return false;
+    }
+
+    public static boolean hasClearShot(Player player) {
+        if (player == null || player.level() == null) return false;
+        Vec3 from = player.getEyePosition();
+        Vec3 to = from.add(player.getLookAngle().scale(Math.max(0.0, Config.aimbotRange)));
+        HitResult blockHit = player.level().clip(new ClipContext(
+                from,
+                to,
+                ClipContext.Block.COLLIDER,
+                ClipContext.Fluid.NONE,
+                player
+        ));
+        return blockHit.getType() == HitResult.Type.MISS;
     }
 
     /**

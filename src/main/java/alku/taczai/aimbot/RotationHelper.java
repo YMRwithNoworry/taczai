@@ -11,7 +11,12 @@ public class RotationHelper {
     private static final double AIM_STRENGTH_MULTIPLIER = 1.35;
 
     public static float[] getTargetRotation(Player player, LivingEntity target) {
-        Vec3 direction = aimSolution(player, target).direction();
+        AimDecision decision = AimDecision.sample(Config.aimAtHead, Config.headshotRate, Config.missRate);
+        return getTargetRotation(player, target, decision);
+    }
+
+    static float[] getTargetRotation(Player player, LivingEntity target, AimDecision decision) {
+        Vec3 direction = applyAimOffset(aimSolution(player, target, decision).direction(), decision);
         double dx = direction.x;
         double dy = direction.y;
         double dz = direction.z;
@@ -47,6 +52,11 @@ public class RotationHelper {
         return aimSolution(player, target, targetPoint);
     }
 
+    static BallisticsHelper.AimSolution aimSolution(Player player, LivingEntity target, AimDecision decision) {
+        Vec3 targetPoint = TargetSelector.visibleAimPoint(player, target, decision.headshot());
+        return aimSolution(player, target, targetPoint);
+    }
+
     private static BallisticsHelper.AimSolution aimSolution(Player player, LivingEntity target, Vec3 targetPoint) {
         return BallisticsHelper.solveAim(
                 player.getEyePosition(),
@@ -55,6 +65,40 @@ public class RotationHelper {
                 target.getDeltaMovement(),
                 BallisticsHelper.getParameters(player)
         );
+    }
+
+    static Vec3 applyAimOffset(Vec3 direction, AimDecision decision) {
+        if (!decision.intentionalMiss()
+                || (Math.abs(decision.missYawDegrees()) < 1.0e-9 && Math.abs(decision.missPitchDegrees()) < 1.0e-9)) {
+            return direction.normalize();
+        }
+
+        Vec3 normalized = direction.normalize();
+        double horizontal = Math.sqrt(normalized.x * normalized.x + normalized.z * normalized.z);
+        if (horizontal < 1.0e-9) {
+            return normalized;
+        }
+
+        double yaw = Math.toDegrees(Math.atan2(normalized.z, normalized.x)) - 90.0;
+        double pitch = -Math.toDegrees(Math.atan2(normalized.y, horizontal));
+        yaw += decision.missYawDegrees();
+        pitch += decision.missPitchDegrees();
+
+        double yawRadians = Math.toRadians(yaw + 90.0);
+        double pitchRadians = -Math.toRadians(pitch);
+        double cosPitch = Math.cos(pitchRadians);
+        return new Vec3(
+                Math.cos(yawRadians) * cosPitch,
+                Math.sin(pitchRadians),
+                Math.sin(yawRadians) * cosPitch
+        ).normalize();
+    }
+
+    static boolean isAligned(Player player, float[] targetRotation, float toleranceDegrees) {
+        if (player == null || targetRotation == null || targetRotation.length < 2) return false;
+        float yawError = Math.abs(Mth.degreesDifference(player.getYRot(), targetRotation[0]));
+        float pitchError = Math.abs(player.getXRot() - targetRotation[1]);
+        return yawError <= toleranceDegrees && pitchError <= toleranceDegrees;
     }
 
     static Vec3 leadTarget(Vec3 targetPoint, Vec3 relativeVelocity, double flightTicks) {
