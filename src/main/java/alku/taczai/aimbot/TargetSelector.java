@@ -132,11 +132,7 @@ public class TargetSelector {
         return confirmedTarget;
     }
 
-    /**
-     * A locked target may be outside the original FOV after an intentional
-     * miss offset is applied. Keep it locked while it remains a visible, valid
-     * target instead of reacquiring or dropping it every tick.
-     */
+    /** Keep the current target locked while it remains visible and valid. */
     public static boolean isTrackableTarget(Player player, LivingEntity target) {
         if (player == null || target == null || player.level() == null || !target.isAlive()) return false;
         double range = Math.max(0.0, Config.aimbotRange);
@@ -150,98 +146,6 @@ public class TargetSelector {
             if (isPointVisible(player, to)) return true;
         }
         return false;
-    }
-
-    public static boolean hasClearShot(Player player) {
-        if (player == null || player.level() == null) return false;
-        Vec3 from = player.getEyePosition();
-        Vec3 to = from.add(player.getLookAngle().scale(Math.max(0.0, Config.aimbotRange)));
-        HitResult blockHit = player.level().clip(new ClipContext(
-                from,
-                to,
-                ClipContext.Block.COLLIDER,
-                ClipContext.Fluid.NONE,
-                player
-        ));
-        return blockHit.getType() == HitResult.Type.MISS;
-    }
-
-    /**
-     * Checks the exact ray used by the next shot rather than a loose aim cone.
-     * A target behind a block is rejected even when its hit box is near the crosshair.
-     */
-    public static boolean willNextShotHitTarget(Player player, LivingEntity target) {
-        if (player == null || target == null || player.level() == null || !target.isAlive()) return false;
-
-        BallisticsHelper.Parameters parameters = BallisticsHelper.getParameters(player);
-        if (!parameters.reliable()) return false;
-        return BallisticsHelper.spreadDirections(player.getLookAngle(), parameters.inaccuracy()).stream()
-                .allMatch(direction -> trajectoryHitsTarget(player, target, direction, parameters));
-    }
-
-    private static boolean trajectoryHitsTarget(
-            Player player,
-            LivingEntity target,
-            Vec3 direction,
-            BallisticsHelper.Parameters parameters
-    ) {
-        Vec3 position = player.getEyePosition();
-        Vec3 velocity = BallisticsHelper.initialVelocity(direction, player.getDeltaMovement(), parameters);
-        AABB targetBox = target.getBoundingBox();
-        Vec3 targetVelocity = target.getDeltaMovement();
-        int lifeTicks = Math.max(1, (int) Math.floor(parameters.lifeTicks()));
-
-        for (int tick = 0; tick < lifeTicks; tick++) {
-            Vec3 nextPosition = position.add(velocity);
-            Optional<Double> targetHitFraction = movingBoxHitFraction(
-                    position, nextPosition, targetBox, targetVelocity, tick
-            );
-
-            HitResult blockHit = player.level().clip(new ClipContext(
-                    position,
-                    nextPosition,
-                    ClipContext.Block.COLLIDER,
-                    ClipContext.Fluid.NONE,
-                    player
-            ));
-            if (targetHitFraction.isPresent()) {
-                Vec3 targetHit = position.lerp(nextPosition, targetHitFraction.get());
-                double targetDistance = targetHit.distanceToSqr(position);
-                double blockDistance = blockHit.getLocation().distanceToSqr(position);
-                if (blockHit.getType() == HitResult.Type.MISS || blockDistance >= targetDistance - 1.0e-7) {
-                    return true;
-                }
-            }
-            if (blockHit.getType() == HitResult.Type.BLOCK) return false;
-
-            position = nextPosition;
-            velocity = BallisticsHelper.advanceVelocity(velocity, parameters);
-        }
-        return false;
-    }
-
-    static Optional<Double> movingBoxHitFraction(
-            Vec3 projectileStart,
-            Vec3 projectileEnd,
-            AABB targetBox,
-            Vec3 targetVelocity,
-            double startTime
-    ) {
-        Vec3 relativeStart = projectileStart.subtract(targetVelocity.scale(startTime));
-        Vec3 relativeEnd = projectileEnd.subtract(targetVelocity.scale(startTime + 1.0));
-        if (targetBox.contains(relativeStart)) return Optional.of(0.0);
-
-        Optional<Vec3> relativeHit = targetBox.clip(relativeStart, relativeEnd);
-        if (relativeHit.isEmpty()) return Optional.empty();
-
-        double segmentLength = relativeStart.distanceTo(relativeEnd);
-        if (segmentLength < 1.0e-12) return Optional.of(0.0);
-        return Optional.of(Math.min(1.0, relativeStart.distanceTo(relativeHit.get()) / segmentLength));
-    }
-
-    static Optional<Vec3> rayBoxIntersection(Vec3 from, Vec3 direction, AABB box, double range) {
-        if (direction.lengthSqr() < 1.0e-12 || range <= 0.0) return Optional.empty();
-        return box.clip(from, from.add(direction.normalize().scale(range)));
     }
 
     static Vec3 visibleAimPoint(Player player, LivingEntity target, boolean preferHead) {

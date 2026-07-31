@@ -9,63 +9,26 @@ import java.util.random.RandomGenerator;
  */
 record AimDecision(
         boolean headshot,
-        boolean intentionalMiss,
-        double missYawFactor,
-        double missPitchFactor,
         boolean aimAtHeadEnabled,
-        double headshotRate,
-        double missRate
+        double headshotRate
 ) {
-    private static final double MIN_MISS_YAW_FACTOR = 1.15;
-    private static final double MAX_MISS_YAW_FACTOR = 1.5;
-
-    static AimDecision sample(boolean aimAtHeadEnabled, double headshotRate, double missRate) {
-        return sample(aimAtHeadEnabled, headshotRate, missRate, ThreadLocalRandom.current());
+    static AimDecision sample(boolean aimAtHeadEnabled, double headshotRate) {
+        return sample(aimAtHeadEnabled, headshotRate, ThreadLocalRandom.current());
     }
 
     static AimDecision sample(
             boolean aimAtHeadEnabled,
             double headshotRate,
-            double missRate,
             RandomGenerator random
     ) {
         double safeHeadshotRate = clampPercentage(headshotRate);
-        double safeMissRate = clampPercentage(missRate);
         boolean headshot = aimAtHeadEnabled && random.nextDouble() * 100.0 < safeHeadshotRate;
-        boolean intentionalMiss = safeMissRate > 0.0 && random.nextDouble() * 100.0 < safeMissRate;
-
-        if (!intentionalMiss) {
-            return new AimDecision(
-                    headshot,
-                    false,
-                    0.0,
-                    0.0,
-                    aimAtHeadEnabled,
-                    safeHeadshotRate,
-                    safeMissRate
-            );
-        }
-
-        double yawSign = random.nextBoolean() ? 1.0 : -1.0;
-        double yawFactor = yawSign * (
-                MIN_MISS_YAW_FACTOR + random.nextDouble() * (MAX_MISS_YAW_FACTOR - MIN_MISS_YAW_FACTOR)
-        );
-        double pitchFactor = random.nextDouble() * 2.0 - 1.0;
-        return new AimDecision(
-                headshot,
-                true,
-                yawFactor,
-                pitchFactor,
-                aimAtHeadEnabled,
-                safeHeadshotRate,
-                safeMissRate
-        );
+        return new AimDecision(headshot, aimAtHeadEnabled, safeHeadshotRate);
     }
 
-    boolean matches(boolean configuredAimAtHead, double configuredHeadshotRate, double configuredMissRate) {
+    boolean matches(boolean configuredAimAtHead, double configuredHeadshotRate) {
         return aimAtHeadEnabled == configuredAimAtHead
-                && Double.compare(headshotRate, clampPercentage(configuredHeadshotRate)) == 0
-                && Double.compare(missRate, clampPercentage(configuredMissRate)) == 0;
+                && Double.compare(headshotRate, clampPercentage(configuredHeadshotRate)) == 0;
     }
 
     private static double clampPercentage(double value) {

@@ -20,6 +20,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 
 @OnlyIn(Dist.CLIENT)
 public class AimbotHandler {
+    private static final double FIRE_ANGLE_THRESHOLD = 5.0;
     private LivingEntity lockedTarget = null;
     private LivingEntity decisionTarget = null;
     private AimDecision aimDecision = null;
@@ -72,15 +73,14 @@ public class AimbotHandler {
 
         float[] targetRot = RotationHelper.getTargetRotation(player, lockedTarget, decision);
         RotationHelper.applySmoothRotation(player, targetRot[0], targetRot[1]);
-        if (Config.autoFire && mc.screen == null) handleAutoFire(player, lockedTarget, decision, targetRot);
+        if (Config.autoFire && mc.screen == null) handleAutoFire(player, lockedTarget);
     }
 
     private AimDecision getAimDecision(LivingEntity target) {
-        double configuredMissRate = Config.autoFire ? Config.missRate : 0.0;
         if (aimDecision == null
                 || decisionTarget != target
-                || !aimDecision.matches(Config.aimAtHead, Config.headshotRate, configuredMissRate)) {
-            aimDecision = AimDecision.sample(Config.aimAtHead, Config.headshotRate, configuredMissRate);
+                || !aimDecision.matches(Config.aimAtHead, Config.headshotRate)) {
+            aimDecision = AimDecision.sample(Config.aimAtHead, Config.headshotRate);
             decisionTarget = target;
         }
         return aimDecision;
@@ -91,7 +91,7 @@ public class AimbotHandler {
         decisionTarget = null;
     }
 
-    private void handleAutoFire(Player player, LivingEntity target, AimDecision decision, float[] targetRotation) {
+    private void handleAutoFire(Player player, LivingEntity target) {
         if (player instanceof LocalPlayer localPlayer) {
             IClientPlayerGunOperator operator = IClientPlayerGunOperator.fromLocalPlayer(localPlayer);
             if (operator == null) return;
@@ -100,12 +100,8 @@ public class AimbotHandler {
             boolean reloading = gunOperator.getSynReloadState().getStateType().isReloading();
             boolean stateLocked = operator.getDataHolder().clientStateLock;
             long shootCooldown = operator.getClientShootCoolDown();
-            if (decision.intentionalMiss() && !RotationHelper.isAligned(player, targetRotation, 2.0F)) return;
-
-            boolean nextShotHitsTarget = decision.intentionalMiss()
-                    ? TargetSelector.hasClearShot(player)
-                    : TargetSelector.willNextShotHitTarget(player, target);
-            if (!shouldAutoFire(nextShotHitsTarget, decision.intentionalMiss(), stateLocked, reloading, shootCooldown)) return;
+            boolean crosshairOnTarget = isCrosshairOnTarget(player, target);
+            if (!shouldAutoFire(crosshairOnTarget, stateLocked, reloading, shootCooldown)) return;
 
             syncAimToServer(localPlayer);
             ShootResult result = operator.shoot();
@@ -138,23 +134,22 @@ public class AimbotHandler {
     }
 
     static boolean shouldAutoFire(
-            boolean nextShotHitsTarget,
-            boolean stateLocked,
-            boolean reloading,
-            long shootCooldown
-    ) {
-        return shouldAutoFire(nextShotHitsTarget, false, stateLocked, reloading, shootCooldown);
-    }
-
-    static boolean shouldAutoFire(
-            boolean nextShotHitsTarget,
-            boolean intentionalMiss,
+            boolean crosshairOnTarget,
             boolean stateLocked,
             boolean reloading,
             long shootCooldown
     ) {
         boolean blockingAction = stateLocked && shootCooldown <= 0;
-        return (nextShotHitsTarget || intentionalMiss) && !blockingAction && !reloading;
+        return crosshairOnTarget && !blockingAction && !reloading;
+    }
+
+    private boolean isCrosshairOnTarget(Player player, LivingEntity target) {
+        return TargetSelector.isBoxWithinFov(
+                player.getEyePosition(),
+                player.getLookAngle(),
+                target.getBoundingBox(),
+                FIRE_ANGLE_THRESHOLD
+        );
     }
 
     @SubscribeEvent

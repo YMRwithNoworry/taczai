@@ -60,34 +60,6 @@ class TargetSelectorTest {
         assertTrue(TargetSelector.isBoxWithinFov(eyePosition, lookDirection, closeTarget, 20.0));
     }
 
-    @Test
-    void exactRayIntersectionIsRequiredForTheNextShot() {
-        Vec3 eyePosition = new Vec3(0.0, 1.62, 0.0);
-        Vec3 lookDirection = new Vec3(0.0, 0.0, 1.0);
-        AABB intersectingTarget = new AABB(-0.3, 1.2, 2.0, 0.3, 2.0, 2.6);
-        AABB nearbyTarget = new AABB(0.8, 1.2, 2.0, 1.4, 2.0, 2.6);
-
-        assertTrue(TargetSelector.rayBoxIntersection(eyePosition, lookDirection, intersectingTarget, 150.0).isPresent());
-        assertTrue(TargetSelector.rayBoxIntersection(eyePosition, lookDirection, nearbyTarget, 150.0).isEmpty());
-        assertTrue(TargetSelector.rayBoxIntersection(eyePosition, Vec3.ZERO, intersectingTarget, 150.0).isEmpty());
-    }
-
-    @Test
-    void projectileAndTargetMovementAreCheckedContinuously() {
-        AABB target = new AABB(-0.3, 0.0, 4.7, 0.3, 1.8, 5.3);
-
-        var hitFraction = TargetSelector.movingBoxHitFraction(
-                new Vec3(0.0, 1.0, 0.0),
-                new Vec3(1.0, 1.0, 10.0),
-                target,
-                new Vec3(1.0, 0.0, 0.0),
-                0.0
-        );
-
-        assertTrue(hitFraction.isPresent());
-        assertEquals(0.47, hitFraction.get(), 0.06);
-    }
-
     private static Vec3 directionAtDegrees(double degrees) {
         double radians = Math.toRadians(degrees);
         return new Vec3(Math.sin(radians), 0.0, Math.cos(radians));

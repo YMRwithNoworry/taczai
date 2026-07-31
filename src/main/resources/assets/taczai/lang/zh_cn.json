@@ -11,7 +11,6 @@
     "config.taczai.head": "瞄准头部",
     "config.taczai.autofire": "自动开火",
     "config.taczai.headshot_rate": "爆头率（百分比）",
-    "config.taczai.miss_rate": "射歪率（百分比）",
     "config.taczai.teammates": "队友管理",
     "config.taczai.teammate_yes": "队友",
     "config.taczai.teammate_no": "非队友",
