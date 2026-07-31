@@ -9,6 +9,7 @@ import net.minecraft.world.phys.Vec3;
 
 public class RotationHelper {
     private static final double AIM_STRENGTH_MULTIPLIER = 1.35;
+    private static final double MISS_CLEARANCE = 0.05;
 
     public static float[] getTargetRotation(Player player, LivingEntity target) {
         AimDecision decision = AimDecision.sample(Config.aimAtHead, Config.headshotRate, Config.missRate);
@@ -16,7 +17,12 @@ public class RotationHelper {
     }
 
     static float[] getTargetRotation(Player player, LivingEntity target, AimDecision decision) {
-        Vec3 direction = applyAimOffset(aimSolution(player, target, decision).direction(), decision);
+        Vec3 direction = applyAimOffset(
+                aimSolution(player, target, decision).direction(),
+                player.getEyePosition(),
+                target.getBoundingBox(),
+                decision
+        );
         double dx = direction.x;
         double dy = direction.y;
         double dz = direction.z;
@@ -67,9 +73,9 @@ public class RotationHelper {
         );
     }
 
-    static Vec3 applyAimOffset(Vec3 direction, AimDecision decision) {
+    static Vec3 applyAimOffset(Vec3 direction, Vec3 shooterPosition, AABB targetBox, AimDecision decision) {
         if (!decision.intentionalMiss()
-                || (Math.abs(decision.missYawDegrees()) < 1.0e-9 && Math.abs(decision.missPitchDegrees()) < 1.0e-9)) {
+                || (Math.abs(decision.missYawFactor()) < 1.0e-9 && Math.abs(decision.missPitchFactor()) < 1.0e-9)) {
             return direction.normalize();
         }
 
@@ -81,8 +87,8 @@ public class RotationHelper {
 
         double yaw = Math.toDegrees(Math.atan2(normalized.z, normalized.x)) - 90.0;
         double pitch = -Math.toDegrees(Math.atan2(normalized.y, horizontal));
-        yaw += decision.missYawDegrees();
-        pitch += decision.missPitchDegrees();
+        yaw += missYawOffsetDegrees(shooterPosition, targetBox, decision.missYawFactor());
+        pitch += missPitchOffsetDegrees(shooterPosition, targetBox, decision.missPitchFactor());
 
         double yawRadians = Math.toRadians(yaw + 90.0);
         double pitchRadians = -Math.toRadians(pitch);
@@ -92,6 +98,20 @@ public class RotationHelper {
                 Math.sin(pitchRadians),
                 Math.sin(yawRadians) * cosPitch
         ).normalize();
+    }
+
+    static double missYawOffsetDegrees(Vec3 shooterPosition, AABB targetBox, double factor) {
+        double distance = Math.max(1.0e-6, shooterPosition.distanceTo(targetBox.getCenter()));
+        double halfWidth = Math.hypot(targetBox.getXsize(), targetBox.getZsize()) * 0.5;
+        double missRadius = halfWidth * Math.abs(factor) + MISS_CLEARANCE;
+        double magnitude = Math.toDegrees(Math.atan2(missRadius, distance));
+        return Math.copySign(magnitude, factor);
+    }
+
+    static double missPitchOffsetDegrees(Vec3 shooterPosition, AABB targetBox, double factor) {
+        double distance = Math.max(1.0e-6, shooterPosition.distanceTo(targetBox.getCenter()));
+        double halfAngle = Math.toDegrees(Math.atan2(targetBox.getYsize() * 0.5, distance));
+        return factor * Math.min(1.0, halfAngle * 0.25);
     }
 
     static boolean isAligned(Player player, float[] targetRotation, float toleranceDegrees) {

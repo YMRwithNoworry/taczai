@@ -10,15 +10,14 @@ import java.util.random.RandomGenerator;
 record AimDecision(
         boolean headshot,
         boolean intentionalMiss,
-        double missYawDegrees,
-        double missPitchDegrees,
+        double missYawFactor,
+        double missPitchFactor,
         boolean aimAtHeadEnabled,
         double headshotRate,
         double missRate
 ) {
-    private static final double MIN_MISS_YAW = 18.0;
-    private static final double MAX_MISS_YAW = 30.0;
-    private static final double MAX_MISS_PITCH = 6.0;
+    private static final double MIN_MISS_YAW_FACTOR = 1.15;
+    private static final double MAX_MISS_YAW_FACTOR = 1.5;
 
     static AimDecision sample(boolean aimAtHeadEnabled, double headshotRate, double missRate) {
         return sample(aimAtHeadEnabled, headshotRate, missRate, ThreadLocalRandom.current());
@@ -48,13 +47,15 @@ record AimDecision(
         }
 
         double yawSign = random.nextBoolean() ? 1.0 : -1.0;
-        double yaw = yawSign * (MIN_MISS_YAW + random.nextDouble() * (MAX_MISS_YAW - MIN_MISS_YAW));
-        double pitch = (random.nextDouble() * 2.0 - 1.0) * MAX_MISS_PITCH;
+        double yawFactor = yawSign * (
+                MIN_MISS_YAW_FACTOR + random.nextDouble() * (MAX_MISS_YAW_FACTOR - MIN_MISS_YAW_FACTOR)
+        );
+        double pitchFactor = random.nextDouble() * 2.0 - 1.0;
         return new AimDecision(
                 headshot,
                 true,
-                yaw,
-                pitch,
+                yawFactor,
+                pitchFactor,
                 aimAtHeadEnabled,
                 safeHeadshotRate,
                 safeMissRate
