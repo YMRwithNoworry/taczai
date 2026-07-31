@@ -146,27 +146,70 @@ public class TargetSelector {
     public static boolean willNextShotHitTarget(Player player, LivingEntity target) {
         if (player == null || target == null || player.level() == null || !target.isAlive()) return false;
 
-        Vec3 from = player.getEyePosition();
-        Vec3 direction = player.getLookAngle();
-        double range = Math.max(0.0, Config.aimbotRange);
-        AABB predictedTargetBox = RotationHelper.predictTargetBox(player, target);
-        Optional<Vec3> targetHit = rayBoxIntersection(from, direction, predictedTargetBox, range);
-        if (targetHit.isEmpty()) return false;
+        BallisticsHelper.Parameters parameters = BallisticsHelper.getParameters(player);
+        if (!parameters.reliable()) return false;
+        return BallisticsHelper.spreadDirections(player.getLookAngle(), parameters.inaccuracy()).stream()
+                .allMatch(direction -> trajectoryHitsTarget(player, target, direction, parameters));
+    }
 
-        Vec3 to = from.add(direction.normalize().scale(range));
+    private static boolean trajectoryHitsTarget(
+            Player player,
+            LivingEntity target,
+            Vec3 direction,
+            BallisticsHelper.Parameters parameters
+    ) {
+        Vec3 position = player.getEyePosition();
+        Vec3 velocity = BallisticsHelper.initialVelocity(direction, player.getDeltaMovement(), parameters);
+        AABB targetBox = target.getBoundingBox();
+        Vec3 targetVelocity = target.getDeltaMovement();
+        int lifeTicks = Math.max(1, (int) Math.floor(parameters.lifeTicks()));
 
-        HitResult blockHit = player.level().clip(new ClipContext(
-                from,
-                to,
-                ClipContext.Block.COLLIDER,
-                ClipContext.Fluid.NONE,
-                player
-        ));
-        if (blockHit.getType() == HitResult.Type.MISS) return true;
+        for (int tick = 0; tick < lifeTicks; tick++) {
+            Vec3 nextPosition = position.add(velocity);
+            Optional<Double> targetHitFraction = movingBoxHitFraction(
+                    position, nextPosition, targetBox, targetVelocity, tick
+            );
 
-        double targetDistance = targetHit.get().distanceToSqr(from);
-        double blockDistance = blockHit.getLocation().distanceToSqr(from);
-        return blockDistance >= targetDistance - 1.0e-7;
+            HitResult blockHit = player.level().clip(new ClipContext(
+                    position,
+                    nextPosition,
+                    ClipContext.Block.COLLIDER,
+                    ClipContext.Fluid.NONE,
+                    player
+            ));
+            if (targetHitFraction.isPresent()) {
+                Vec3 targetHit = position.lerp(nextPosition, targetHitFraction.get());
+                double targetDistance = targetHit.distanceToSqr(position);
+                double blockDistance = blockHit.getLocation().distanceToSqr(position);
+                if (blockHit.getType() == HitResult.Type.MISS || blockDistance >= targetDistance - 1.0e-7) {
+                    return true;
+                }
+            }
+            if (blockHit.getType() == HitResult.Type.BLOCK) return false;
+
+            position = nextPosition;
+            velocity = BallisticsHelper.advanceVelocity(velocity, parameters);
+        }
+        return false;
+    }
+
+    static Optional<Double> movingBoxHitFraction(
+            Vec3 projectileStart,
+            Vec3 projectileEnd,
+            AABB targetBox,
+            Vec3 targetVelocity,
+            double startTime
+    ) {
+        Vec3 relativeStart = projectileStart.subtract(targetVelocity.scale(startTime));
+        Vec3 relativeEnd = projectileEnd.subtract(targetVelocity.scale(startTime + 1.0));
+        if (targetBox.contains(relativeStart)) return Optional.of(0.0);
+
+        Optional<Vec3> relativeHit = targetBox.clip(relativeStart, relativeEnd);
+        if (relativeHit.isEmpty()) return Optional.empty();
+
+        double segmentLength = relativeStart.distanceTo(relativeEnd);
+        if (segmentLength < 1.0e-12) return Optional.of(0.0);
+        return Optional.of(Math.min(1.0, relativeStart.distanceTo(relativeHit.get()) / segmentLength));
     }
 
     static Optional<Vec3> rayBoxIntersection(Vec3 from, Vec3 direction, AABB box, double range) {
