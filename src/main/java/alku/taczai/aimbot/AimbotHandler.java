@@ -20,7 +20,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 
 @OnlyIn(Dist.CLIENT)
 public class AimbotHandler {
-    private static final double FIRE_ANGLE_THRESHOLD = 5.0;
+    private static final float FIRE_ANGLE_THRESHOLD = 0.1F;
     private LivingEntity lockedTarget = null;
     private LivingEntity decisionTarget = null;
     private AimDecision aimDecision = null;
@@ -73,7 +73,7 @@ public class AimbotHandler {
 
         float[] targetRot = RotationHelper.getTargetRotation(player, lockedTarget, decision);
         RotationHelper.applySmoothRotation(player, targetRot[0], targetRot[1]);
-        if (Config.autoFire && mc.screen == null) handleAutoFire(player, lockedTarget);
+        if (Config.autoFire && mc.screen == null) handleAutoFire(player, targetRot);
     }
 
     private AimDecision getAimDecision(LivingEntity target) {
@@ -91,7 +91,7 @@ public class AimbotHandler {
         decisionTarget = null;
     }
 
-    private void handleAutoFire(Player player, LivingEntity target) {
+    private void handleAutoFire(Player player, float[] targetRotation) {
         if (player instanceof LocalPlayer localPlayer) {
             IClientPlayerGunOperator operator = IClientPlayerGunOperator.fromLocalPlayer(localPlayer);
             if (operator == null) return;
@@ -100,8 +100,8 @@ public class AimbotHandler {
             boolean reloading = gunOperator.getSynReloadState().getStateType().isReloading();
             boolean stateLocked = operator.getDataHolder().clientStateLock;
             long shootCooldown = operator.getClientShootCoolDown();
-            boolean crosshairOnTarget = isCrosshairOnTarget(player, target);
-            if (!shouldAutoFire(crosshairOnTarget, stateLocked, reloading, shootCooldown)) return;
+            boolean aimAligned = RotationHelper.isAligned(player, targetRotation, FIRE_ANGLE_THRESHOLD);
+            if (!shouldAutoFire(aimAligned, stateLocked, reloading, shootCooldown)) return;
 
             syncAimToServer(localPlayer);
             ShootResult result = operator.shoot();
@@ -134,22 +134,13 @@ public class AimbotHandler {
     }
 
     static boolean shouldAutoFire(
-            boolean crosshairOnTarget,
+            boolean aimAligned,
             boolean stateLocked,
             boolean reloading,
             long shootCooldown
     ) {
         boolean blockingAction = stateLocked && shootCooldown <= 0;
-        return crosshairOnTarget && !blockingAction && !reloading;
-    }
-
-    private boolean isCrosshairOnTarget(Player player, LivingEntity target) {
-        return TargetSelector.isBoxWithinFov(
-                player.getEyePosition(),
-                player.getLookAngle(),
-                target.getBoundingBox(),
-                FIRE_ANGLE_THRESHOLD
-        );
+        return aimAligned && !blockingAction && !reloading;
     }
 
     @SubscribeEvent

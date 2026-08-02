@@ -25,6 +25,6 @@ class RotationHelperTest {
         float original = 90.0F * (1.0F - 0.3F);
 
         assertTrue(strengthened > original);
-        assertTrue(strengthened <= 90.0F);
+        assertEquals(90.0F, strengthened);
     }
 }

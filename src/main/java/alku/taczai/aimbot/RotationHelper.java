@@ -8,7 +8,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 public class RotationHelper {
-    private static final double AIM_STRENGTH_MULTIPLIER = 1.35;
+    private static final double AIM_STRENGTH_MULTIPLIER = 2.0;
 
     public static float[] getTargetRotation(Player player, LivingEntity target) {
         AimDecision decision = AimDecision.sample(Config.aimAtHead, Config.headshotRate);
@@ -65,5 +65,12 @@ public class RotationHelper {
 
         player.setYRot(newYaw);
         player.setXRot(newPitch);
+    }
+
+    static boolean isAligned(Player player, float[] targetRotation, float toleranceDegrees) {
+        if (player == null || targetRotation == null || targetRotation.length < 2) return false;
+        float yawError = Math.abs(Mth.degreesDifference(player.getYRot(), targetRotation[0]));
+        float pitchError = Math.abs(player.getXRot() - targetRotation[1]);
+        return yawError <= toleranceDegrees && pitchError <= toleranceDegrees;
     }
 }
