@@ -42,7 +42,9 @@ public class TargetSelector {
         if (entities.isEmpty()) return null;
 
         LivingEntity best = entities.stream()
-                .min(Comparator.comparingDouble(e -> aimScore(eyePos, lookVec, e.getBoundingBox())))
+                .min(Comparator
+                        .comparingDouble((LivingEntity e) -> aimScore(eyePos, lookVec, e.getBoundingBox()))
+                        .thenComparingDouble(e -> e.distanceToSqr(player)))
                 .orElse(null);
 
         return best;
@@ -150,7 +152,9 @@ public class TargetSelector {
 
     static Vec3 visibleAimPoint(Player player, LivingEntity target, boolean preferHead) {
         List<Vec3> points = visibilityPoints(target.getBoundingBox());
-        int[] order = preferHead ? new int[]{0, 1, 2} : new int[]{1, 0, 2};
+        int[] order = preferHead
+                ? new int[]{0, 1, 2, 3, 4, 5, 6}
+                : new int[]{1, 0, 2, 3, 4, 5, 6};
         for (int index : order) {
             Vec3 point = points.get(index);
             if (isPointVisible(player, point)) return point;
@@ -158,7 +162,7 @@ public class TargetSelector {
         return preferHead ? points.get(0) : points.get(1);
     }
 
-    private static boolean isPointVisible(Player player, Vec3 to) {
+    static boolean isPointVisible(Player player, Vec3 to) {
         Vec3 from = player.getEyePosition();
         ClipContext context = new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player);
         HitResult result = player.level().clip(context);
@@ -179,13 +183,26 @@ public class TargetSelector {
         double epsilon = Math.min(1.0e-4, height * 0.1);
         double lowerY = Math.max(box.minY + epsilon, box.minY + height * 0.2);
         double headY = Math.min(box.maxY - epsilon, box.minY + height * 0.9);
+        double bodyY = box.getCenter().y;
         double centerX = (box.minX + box.maxX) * 0.5;
         double centerZ = (box.minZ + box.maxZ) * 0.5;
 
+        // Side points make targets that are only peeking out from behind a
+        // corner lockable and hittable; the three center points are still
+        // preferred by visibleAimPoint().
+        double sideXMin = box.minX + Math.max(epsilon, box.getXsize() * 0.1);
+        double sideXMax = box.maxX - Math.max(epsilon, box.getXsize() * 0.1);
+        double sideZMin = box.minZ + Math.max(epsilon, box.getZsize() * 0.1);
+        double sideZMax = box.maxZ - Math.max(epsilon, box.getZsize() * 0.1);
+
         return List.of(
                 new Vec3(centerX, headY, centerZ),
-                box.getCenter(),
-                new Vec3(centerX, lowerY, centerZ)
+                new Vec3(centerX, bodyY, centerZ),
+                new Vec3(centerX, lowerY, centerZ),
+                new Vec3(sideXMin, bodyY, centerZ),
+                new Vec3(sideXMax, bodyY, centerZ),
+                new Vec3(centerX, bodyY, sideZMin),
+                new Vec3(centerX, bodyY, sideZMax)
         );
     }
 

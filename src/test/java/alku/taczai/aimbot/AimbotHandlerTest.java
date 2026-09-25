@@ -8,22 +8,30 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class AimbotHandlerTest {
     @Test
     void autoFireStopsWhileReloading() {
-        assertFalse(AimbotHandler.shouldAutoFire(true, false, true, 0));
+        assertFalse(AimbotHandler.shouldAutoFire(true, true, 0L));
     }
 
     @Test
-    void autoFireStopsWhileNonShootingGunStateIsLocked() {
-        assertFalse(AimbotHandler.shouldAutoFire(true, true, false, 0));
+    void autoFireWaitsUntilAdsProgressIsCompleteForGuaranteedAccuracy() {
+        assertFalse(AimbotHandler.shouldAutoFire(false, false, 0L));
+        assertTrue(AimbotHandler.shouldAutoFire(false, true, 0L));
     }
 
     @Test
-    void autoFireLetsTaczHandleItsOwnShootCooldown() {
-        assertTrue(AimbotHandler.shouldAutoFire(true, true, false, 25));
+    void autoFireStopsWhenTheGunIndexIsUnknown() {
+        assertFalse(AimbotHandler.shouldAutoFire(false, true, -1L));
     }
 
     @Test
-    void autoFireRequiresAimToBeAlignedWithTheTarget() {
-        assertFalse(AimbotHandler.shouldAutoFire(false, false, false, 0));
-        assertTrue(AimbotHandler.shouldAutoFire(true, false, false, 0));
+    void autoFireWaitsUntilTaczWillAcceptTheShot() {
+        assertFalse(AimbotHandler.shouldAutoFire(false, true, 50L));
+        assertFalse(AimbotHandler.shouldAutoFire(false, true, 120L));
+    }
+
+    @Test
+    void autoFireRunsAsSoonAsTaczCooldownAllowsIt() {
+        assertTrue(AimbotHandler.shouldAutoFire(false, true, 0L));
+        assertTrue(AimbotHandler.shouldAutoFire(false, true, 25L));
+        assertTrue(AimbotHandler.shouldAutoFire(false, true, 49L));
     }
 }

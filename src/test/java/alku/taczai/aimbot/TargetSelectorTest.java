@@ -24,7 +24,7 @@ class TargetSelectorTest {
 
         var points = TargetSelector.visibilityPoints(proneTarget);
 
-        assertEquals(3, points.size());
+        assertEquals(7, points.size());
         assertTrue(points.stream().allMatch(proneTarget::contains));
     }
 

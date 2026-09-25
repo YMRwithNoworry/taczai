@@ -20,7 +20,10 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 
 @OnlyIn(Dist.CLIENT)
 public class AimbotHandler {
-    private static final float FIRE_ANGLE_THRESHOLD = 0.1F;
+    /** TACZ returns COOL_DOWN while the remaining client cooldown is 50 ms or more. */
+    private static final long SHOOT_COOLDOWN_THRESHOLD = 50L;
+    /** TACZ only applies the full ADS accuracy bonus once aiming progress reaches 1. */
+    private static final float AIM_PROGRESS_READY = 0.999F;
     private LivingEntity lockedTarget = null;
     private LivingEntity decisionTarget = null;
     private AimDecision aimDecision = null;
@@ -92,21 +95,25 @@ public class AimbotHandler {
     }
 
     private void handleAutoFire(Player player, float[] targetRotation) {
-        if (player instanceof LocalPlayer localPlayer) {
-            IClientPlayerGunOperator operator = IClientPlayerGunOperator.fromLocalPlayer(localPlayer);
-            if (operator == null) return;
+        if (!(player instanceof LocalPlayer localPlayer)) return;
 
-            IGunOperator gunOperator = IGunOperator.fromLivingEntity(localPlayer);
-            boolean reloading = gunOperator.getSynReloadState().getStateType().isReloading();
-            boolean stateLocked = operator.getDataHolder().clientStateLock;
-            long shootCooldown = operator.getClientShootCoolDown();
-            boolean aimAligned = RotationHelper.isAligned(player, targetRotation, FIRE_ANGLE_THRESHOLD);
-            if (!shouldAutoFire(aimAligned, stateLocked, reloading, shootCooldown)) return;
+        IClientPlayerGunOperator operator = IClientPlayerGunOperator.fromLocalPlayer(localPlayer);
+        if (operator == null) return;
 
-            syncAimToServer(localPlayer);
-            ShootResult result = operator.shoot();
-            if (result == ShootResult.SUCCESS) clearAimDecision();
-        }
+        IGunOperator gunOperator = IGunOperator.fromLivingEntity(localPlayer);
+        boolean reloading = gunOperator.getSynReloadState().getStateType().isReloading();
+        boolean aimed = gunOperator.getSynAimingProgress() >= AIM_PROGRESS_READY;
+        long shootCooldown = operator.getClientShootCoolDown();
+        if (!shouldAutoFire(reloading, aimed, shootCooldown)) return;
+
+        // Snap for the actual shot. TACZ reads the player's current pitch/yaw
+        // on the server, so waiting for the smoothed client rotation to reach a
+        // tolerance was the main reason auto fire felt slower.
+        RotationHelper.applySnapRotation(localPlayer, targetRotation[0], targetRotation[1]);
+        syncAimToServer(localPlayer);
+
+        ShootResult result = operator.shoot();
+        if (result == ShootResult.SUCCESS) clearAimDecision();
     }
 
     private void syncAimToServer(LocalPlayer player) {
@@ -124,7 +131,13 @@ public class AimbotHandler {
             return;
         }
 
-        if (shouldAim && !operator.isAim()) {
+        IGunOperator gunOperator = IGunOperator.fromLivingEntity(player);
+        boolean clientAiming = operator.isAim();
+        boolean serverAiming = gunOperator.getSynIsAiming();
+
+        if (shouldAim && (!clientAiming || !serverAiming)) {
+            // Re-send while the server has not confirmed the aim state yet. This
+            // prevents a silent desync from permanently stalling ADS progress.
             operator.aim(true);
             forcedAim = true;
         } else if (!shouldAim && forcedAim) {
@@ -133,14 +146,11 @@ public class AimbotHandler {
         }
     }
 
-    static boolean shouldAutoFire(
-            boolean aimAligned,
-            boolean stateLocked,
-            boolean reloading,
-            long shootCooldown
-    ) {
-        boolean blockingAction = stateLocked && shootCooldown <= 0;
-        return aimAligned && !blockingAction && !reloading;
+    static boolean shouldAutoFire(boolean reloading, boolean aimed, long shootCooldown) {
+        return !reloading
+                && aimed
+                && shootCooldown >= 0L
+                && shootCooldown < SHOOT_COOLDOWN_THRESHOLD;
     }
 
     @SubscribeEvent

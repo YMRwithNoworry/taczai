@@ -1,6 +1,7 @@
 package alku.taczai.aimbot;
 
 import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -26,5 +27,25 @@ class RotationHelperTest {
 
         assertTrue(strengthened > original);
         assertEquals(90.0F, strengthened);
+    }
+
+    @Test
+    void slowestAimSpeedStillConvergesInsteadOfFreezing() {
+        float angle = 0.0F;
+        for (int tick = 0; tick < 200 && angle != 90.0F; tick++) {
+            angle = RotationHelper.smoothAngle(angle, 90.0F, 1.0F);
+        }
+
+        assertEquals(90.0F, angle, 1.0e-3);
+    }
+
+    @Test
+    void directionConversionUsesMinecraftYawAndPitchConventions() {
+        float[] forward = RotationHelper.directionToRotation(null, new Vec3(0.0, 0.0, 1.0));
+        assertEquals(0.0F, forward[0], 1.0e-4);
+        assertEquals(0.0F, forward[1], 1.0e-4);
+
+        float[] up = RotationHelper.directionToRotation(null, new Vec3(0.0, 1.0, 0.0));
+        assertEquals(-90.0F, up[1], 1.0e-4);
     }
 }
