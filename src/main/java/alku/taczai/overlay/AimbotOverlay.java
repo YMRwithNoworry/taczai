@@ -14,6 +14,7 @@ import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.client.event.RegisterGuiOverlaysEvent;
+import net.minecraftforge.client.event.ViewportEvent;
 import net.minecraftforge.client.gui.overlay.VanillaGuiOverlay;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
@@ -27,6 +28,19 @@ public class AimbotOverlay {
         event.registerAbove(VanillaGuiOverlay.CROSSHAIR.id(), "aimbot_status", (gui, guiGraphics, partialTick, screenWidth, screenHeight) -> {
             renderOverlay(guiGraphics, screenWidth, screenHeight);
         });
+        event.registerAbove(VanillaGuiOverlay.CROSSHAIR.id(), "aimbot_fov_circle", (gui, guiGraphics, partialTick, screenWidth, screenHeight) -> {
+            FovCircleRenderer.render(guiGraphics, screenWidth, screenHeight);
+        });
+    }
+
+    /**
+     * The world is rendered with a FOV that sprinting, zoom and effects modify,
+     * so the ring is sized from what the renderer actually used.
+     */
+    @SubscribeEvent
+    public void onComputeFov(ViewportEvent.ComputeFov event) {
+        if (!event.usedConfiguredFov()) return;
+        FovCircleRenderer.updateViewportFov(event.getFOV());
     }
 
     private static void renderOverlay(GuiGraphics guiGraphics, int screenWidth, int screenHeight) {

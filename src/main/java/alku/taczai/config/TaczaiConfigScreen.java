@@ -34,6 +34,7 @@ public final class TaczaiConfigScreen {
         boolean[] head = {Config.aimAtHead};
         boolean[] fire = {Config.autoFire};
         double[] headshotRate = {Config.headshotRate};
+        boolean[] fovCircle = {Config.showFovCircle};
 
         aiming.addEntry(entries.startIntSlider(Component.translatable("config.taczai.range"), range[0], 5, 256)
                 .setDefaultValue(150).setSaveConsumer(value -> range[0] = value).build());
@@ -45,6 +46,8 @@ public final class TaczaiConfigScreen {
                 .setDefaultValue(true).setSaveConsumer(value -> head[0] = value).build());
         aiming.addEntry(entries.startBooleanToggle(Component.translatable("config.taczai.autofire"), fire[0])
                 .setDefaultValue(true).setSaveConsumer(value -> fire[0] = value).build());
+        aiming.addEntry(entries.startBooleanToggle(Component.translatable("config.taczai.fov_circle"), fovCircle[0])
+                .setDefaultValue(true).setSaveConsumer(value -> fovCircle[0] = value).build());
         aiming.addEntry(entries.startDoubleField(Component.translatable("config.taczai.headshot_rate"), headshotRate[0])
                 .setDefaultValue(100.0).setMin(0.0).setMax(100.0)
                 .setSaveConsumer(value -> headshotRate[0] = value).build());
@@ -87,7 +90,7 @@ public final class TaczaiConfigScreen {
         }
 
         builder.setSavingRunnable(() -> {
-            Config.updateAiming(range[0], speed[0], fov[0], head[0], fire[0], headshotRate[0]);
+            Config.updateAiming(range[0], speed[0], fov[0], head[0], fire[0], headshotRate[0], fovCircle[0]);
             TeammateManager.replaceAndSave(selectedTeammates, teammateNames);
         });
         return builder.build();

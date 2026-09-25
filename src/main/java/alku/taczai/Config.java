@@ -36,6 +36,10 @@ public class Config {
             .comment("Chance for automatic aim to select the target head, in percent")
             .defineInRange("headshotRate", 100.0, 0.0, 100.0);
 
+    private static final ForgeConfigSpec.BooleanValue SHOW_FOV_CIRCLE = BUILDER
+            .comment("Draw the FOV auto-aim cone as a circle around the crosshair")
+            .define("showFovCircle", true);
+
     private static final ForgeConfigSpec.ConfigValue<List<? extends String>> TEAMMATE_UUIDS = BUILDER
             .comment("Persistent local teammate UUIDs")
             .defineListAllowEmpty("teammateUuids", List.of(), value -> value instanceof String);
@@ -51,6 +55,7 @@ public class Config {
     public static double aimbotFov;
     public static boolean aimAtHead;
     public static boolean autoFire;
+    public static boolean showFovCircle;
     public static double headshotRate = 100.0;
     public static List<String> teammateUuids = List.of();
     public static List<String> teammateNames = List.of();
@@ -62,6 +67,7 @@ public class Config {
         aimbotFov = AIMBOT_FOV.get();
         aimAtHead = AIM_AT_HEAD.get();
         autoFire = AUTO_FIRE.get();
+        showFovCircle = SHOW_FOV_CIRCLE.get();
         headshotRate = HEADSHOT_RATE.get();
         teammateUuids = List.copyOf(TEAMMATE_UUIDS.get());
         teammateNames = List.copyOf(TEAMMATE_NAMES.get());
@@ -77,7 +83,7 @@ public class Config {
     }
 
     public static void updateAiming(int range, double speed, double fov, boolean head, boolean fire) {
-        updateAiming(range, speed, fov, head, fire, headshotRate);
+        updateAiming(range, speed, fov, head, fire, headshotRate, showFovCircle);
     }
 
     public static void updateAiming(
@@ -88,6 +94,18 @@ public class Config {
             boolean fire,
             double configuredHeadshotRate
     ) {
+        updateAiming(range, speed, fov, head, fire, configuredHeadshotRate, showFovCircle);
+    }
+
+    public static void updateAiming(
+            int range,
+            double speed,
+            double fov,
+            boolean head,
+            boolean fire,
+            double configuredHeadshotRate,
+            boolean showCircle
+    ) {
         double safeHeadshotRate = clampPercentage(configuredHeadshotRate);
         AIMBOT_RANGE.set(range);
         AIM_SPEED.set(speed);
@@ -95,12 +113,14 @@ public class Config {
         AIM_AT_HEAD.set(head);
         AUTO_FIRE.set(fire);
         HEADSHOT_RATE.set(safeHeadshotRate);
+        SHOW_FOV_CIRCLE.set(showCircle);
         aimbotRange = range;
         aimSpeed = speed;
         aimbotFov = fov;
         aimAtHead = head;
         autoFire = fire;
         headshotRate = safeHeadshotRate;
+        showFovCircle = showCircle;
         SPEC.save();
     }
 
