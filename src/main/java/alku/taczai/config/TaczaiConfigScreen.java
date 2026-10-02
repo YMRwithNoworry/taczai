@@ -29,7 +29,7 @@ public final class TaczaiConfigScreen {
         ConfigCategory aiming = builder.getOrCreateCategory(Component.translatable("config.taczai.aiming"));
 
         int[] range = {Config.aimbotRange};
-        double[] turnSpeed = {Config.aimTurnSpeed};
+        int[] turnMs = {Config.aimTurnMs};
         double[] fov = {Config.aimbotFov};
         boolean[] head = {Config.aimAtHead};
         boolean[] fire = {Config.autoFire};
@@ -38,8 +38,8 @@ public final class TaczaiConfigScreen {
 
         aiming.addEntry(entries.startIntSlider(Component.translatable("config.taczai.range"), range[0], 5, 256)
                 .setDefaultValue(150).setSaveConsumer(value -> range[0] = value).build());
-        aiming.addEntry(entries.startDoubleField(Component.translatable("config.taczai.turn_speed"), turnSpeed[0])
-                .setDefaultValue(6.0).setMin(1.0).setMax(90.0).setSaveConsumer(value -> turnSpeed[0] = value).build());
+        aiming.addEntry(entries.startIntSlider(Component.translatable("config.taczai.turn_duration"), turnMs[0], 100, 150)
+                .setDefaultValue(125).setSaveConsumer(value -> turnMs[0] = value).build());
         aiming.addEntry(entries.startDoubleField(Component.translatable("config.taczai.fov"), fov[0])
                 .setDefaultValue(20.0).setMin(1.0).setMax(180.0).setSaveConsumer(value -> fov[0] = value).build());
         aiming.addEntry(entries.startBooleanToggle(Component.translatable("config.taczai.head"), head[0])
@@ -90,7 +90,7 @@ public final class TaczaiConfigScreen {
         }
 
         builder.setSavingRunnable(() -> {
-            Config.updateAiming(range[0], turnSpeed[0], fov[0], head[0], fire[0], headshotRate[0], fovCircle[0]);
+            Config.updateAiming(range[0], turnMs[0], fov[0], head[0], fire[0], headshotRate[0], fovCircle[0]);
             TeammateManager.replaceAndSave(selectedTeammates, teammateNames);
         });
         return builder.build();

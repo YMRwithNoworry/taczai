@@ -21,34 +21,27 @@ class RotationHelperTest {
     }
 
     @Test
-    void turnStepIsLimitedToTheConfiguredRate() {
-        assertEquals(6.0F, RotationHelper.stepAngle(0.0F, 90.0F, 6.0F), 1.0e-4);
-        assertEquals(-6.0F, RotationHelper.stepAngle(0.0F, -90.0F, 6.0F), 1.0e-4);
+    void aTurnIsSpreadOverTheConfiguredTicks() {
+        assertEquals(45.0F, RotationHelper.stepAngle(0.0F, 90.0F, 2), 1.0e-4);
+        assertEquals(30.0F, RotationHelper.stepAngle(0.0F, 90.0F, 3), 1.0e-4);
     }
 
     @Test
-    void turnStepLandsExactlyOnTheAimWhenTheRestFitsIntoTheStep() {
-        assertEquals(4.0F, RotationHelper.stepAngle(0.0F, 4.0F, 6.0F), 1.0e-4);
-        assertEquals(90.0F, RotationHelper.stepAngle(86.0F, 90.0F, 6.0F), 1.0e-4);
-    }
-
-    @Test
-    void slowTurnRateStillConvergesInsteadOfFreezing() {
+    void theLastTickOfATurnLandsExactlyOnTheAim() {
         float angle = 0.0F;
-        for (int tick = 0; tick < 200 && angle != 90.0F; tick++) {
-            angle = RotationHelper.stepAngle(angle, 90.0F, 1.0F);
+        for (int remaining = 3; remaining >= 1; remaining--) {
+            angle = RotationHelper.stepAngle(angle, 90.0F, remaining);
         }
 
         assertEquals(90.0F, angle, 1.0e-3);
     }
 
     @Test
-    void turnStepTakesTheShortWayAcrossTheYawSeam() {
-        float angle = -176.0F;
-        for (int tick = 0; tick < 10 && angle != 176.0F; tick++) {
-            angle = RotationHelper.stepAngle(angle, 176.0F, 6.0F);
-        }
+    void aTurnNeverSnapsAndTakesTheShortWayAcrossTheYawSeam() {
+        float angle = RotationHelper.stepAngle(-176.0F, 176.0F, 2);
+        assertTrue(Math.abs(angle + 176.0F) > 1.0e-3);
 
+        angle = RotationHelper.stepAngle(angle, 176.0F, 1);
         assertEquals(176.0F, angle, 1.0e-3);
     }
 

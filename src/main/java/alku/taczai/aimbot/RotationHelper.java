@@ -78,36 +78,35 @@ public class RotationHelper {
     }
 
     /**
-     * Moves {@code current} toward {@code target} by at most {@code maxStepDegrees}.
-     * The exact target is returned once the remaining difference fits into the step,
-     * so the aim always reaches the target instead of asymptotically approaching it.
+     * Moves {@code current} the remaining share of the way to {@code target} so that
+     * the whole turn is finished after {@code remainingSteps} ticks. The last tick
+     * returns the exact target, so a turn always ends on the aim and never trails it.
      */
-    public static float stepAngle(float current, float target, float maxStepDegrees) {
-        float delta = Mth.degreesDifference(current, target);
-        float step = Math.max(maxStepDegrees, SNAP_ANGLE_THRESHOLD);
-        if (Math.abs(delta) <= step) {
+    public static float stepAngle(float current, float target, int remainingSteps) {
+        if (remainingSteps <= 1) {
             return Mth.wrapDegrees(target);
         }
-        return Mth.wrapDegrees(current + Math.copySign(maxStepDegrees, delta));
+        float delta = Mth.degreesDifference(current, target);
+        return Mth.wrapDegrees(current + delta / remainingSteps);
     }
 
     /**
      * Turns the player's own rotation - the one the client reports to the server and
-     * the one other players see on the model - toward the aim at a limited rate, so
-     * the turn has a visible process instead of a single snap.
+     * the one other players see on the model - toward the aim over the remaining ticks
+     * of the current turn, so the swing has a visible process instead of one snap.
      *
-     * @return true when the rotation reached the aim on this tick, i.e. the turn was
-     *         not rate limited. TACZ reads the shot direction from the server side
-     *         rotation, so auto fire only shoots while this holds.
+     * @return true when the rotation is on the aim after this call. TACZ reads the shot
+     *         direction from the server side rotation, so auto fire only shoots then.
      */
-    public static boolean turnTowards(Player player, float targetYaw, float targetPitch, float maxStepDegrees) {
-        float allowed = Math.max(maxStepDegrees, SNAP_ANGLE_THRESHOLD);
-        boolean reached = Math.abs(Mth.degreesDifference(player.getYRot(), targetYaw)) <= allowed
-                && Math.abs(Mth.degreesDifference(player.getXRot(), targetPitch)) <= allowed;
+    public static boolean turnTowards(Player player, float targetYaw, float targetPitch, int remainingSteps) {
+        float yawDelta = Mth.degreesDifference(player.getYRot(), targetYaw);
+        float pitchDelta = Mth.degreesDifference(player.getXRot(), targetPitch);
+        boolean onAim = remainingSteps <= 1
+                || (Math.abs(yawDelta) <= SNAP_ANGLE_THRESHOLD && Math.abs(pitchDelta) <= SNAP_ANGLE_THRESHOLD);
 
-        player.setYRot(stepAngle(player.getYRot(), targetYaw, maxStepDegrees));
-        player.setXRot(Mth.clamp(stepAngle(player.getXRot(), targetPitch, maxStepDegrees), -90.0F, 90.0F));
-        return reached;
+        player.setYRot(stepAngle(player.getYRot(), targetYaw, remainingSteps));
+        player.setXRot(Mth.clamp(stepAngle(player.getXRot(), targetPitch, remainingSteps), -90.0F, 90.0F));
+        return onAim;
     }
 
     public static void applySnapRotation(Player player, float targetYaw, float targetPitch) {

@@ -30,10 +30,17 @@ class AimbotHandlerTest {
     }
 
     @Test
-    void theTurnRateGrowsWithTargetsThatKeepMovingFaster() {
-        assertEquals(6.0F, AimbotHandler.effectiveStep(6.0, 0.0F), 1.0e-4);
-        assertEquals(6.0F, AimbotHandler.effectiveStep(6.0, 4.0F), 1.0e-4);
-        assertEquals(9.0F, AimbotHandler.effectiveStep(6.0, 9.0F), 1.0e-4);
+    void theTurnDurationIsConvertedToWholeTicks() {
+        assertEquals(2, AimbotHandler.turnTicks(100.0));
+        assertEquals(2, AimbotHandler.turnTicks(120.0));
+        assertEquals(3, AimbotHandler.turnTicks(125.0));
+        assertEquals(3, AimbotHandler.turnTicks(150.0));
+    }
+
+    @Test
+    void theTurnDurationStaysInsideTheConfiguredWindow() {
+        assertEquals(2, AimbotHandler.turnTicks(1.0));
+        assertEquals(3, AimbotHandler.turnTicks(1000.0));
     }
 
     @Test

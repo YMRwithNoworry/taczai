@@ -20,16 +20,18 @@ import net.minecraftforge.client.event.ViewportEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 
-import java.util.Arrays;
-
 @OnlyIn(Dist.CLIENT)
 public class AimbotHandler {
     /** TACZ returns COOL_DOWN while the remaining client cooldown is 50 ms or more. */
     private static final long SHOOT_COOLDOWN_THRESHOLD = 50L;
     /** TACZ only applies the full ADS accuracy bonus once aiming progress reaches 1. */
     private static final float AIM_PROGRESS_READY = 0.999F;
-    /** Number of ticks of aim movement averaged to notice fast moving targets. */
-    private static final int AIM_MOTION_SAMPLES = 3;
+    /** A rotation error above this is a real turn (new target, mouse drag), not tracking. */
+    private static final float TURN_START_ANGLE = 10.0F;
+    /** Milliseconds per tick: the server hands the visible turn to other clients at 20 tps. */
+    private static final double MILLIS_PER_TICK = 50.0;
+    private static final int MIN_TURN_TICKS = 2;
+    private static final int MAX_TURN_TICKS = 3;
 
     private LivingEntity lockedTarget = null;
     private LivingEntity decisionTarget = null;
@@ -41,11 +43,9 @@ public class AimbotHandler {
     private float cameraAimYaw = 0.0F;
     private float cameraAimPitch = 0.0F;
 
-    /** Recent per tick movement of the aim itself, used to keep up with fast targets. */
-    private final float[] aimMotion = new float[AIM_MOTION_SAMPLES];
-    private int aimMotionIndex = 0;
-    private float previousAimYaw = Float.NaN;
-    private float previousAimPitch = Float.NaN;
+    /** Ticks left of the visible turn; zero or less means the rotation follows the aim. */
+    private int turnTicksLeft = 0;
+    private LivingEntity turnTarget = null;
 
     @SubscribeEvent
     public void onClientTick(TickEvent.ClientTickEvent event) {
@@ -99,9 +99,9 @@ public class AimbotHandler {
 
         float[] targetRot = RotationHelper.getTargetRotation(player, lockedTarget, decision);
         // The rotation the server sees - and therefore what other players see on the
-        // model - is turned at a limited rate instead of snapping in a single tick.
-        float maxStep = effectiveStep(Config.aimTurnSpeed, updateAimMotion(targetRot));
-        boolean aimReached = RotationHelper.turnTowards(player, targetRot[0], targetRot[1], maxStep);
+        // model - is spread over the configured turn time instead of snapping at once.
+        int turnSteps = updateTurnBudget(player, lockedTarget, targetRot);
+        boolean aimReached = RotationHelper.turnTowards(player, targetRot[0], targetRot[1], turnSteps);
         holdCameraOnAim(targetRot[0], targetRot[1]);
         if (Config.autoFire && mc.screen == null) handleAutoFire(player, targetRot, aimReached);
     }
@@ -123,32 +123,31 @@ public class AimbotHandler {
         event.setPitch(Mth.clamp(event.getPitch() + pitchOffset, -90.0F, 90.0F));
     }
 
-    /**
-     * Averages the last few ticks of aim movement. A single target switch makes the
-     * aim jump once and must stay gradual, while a target that keeps moving faster
-     * than the configured rate has to be followed or auto fire would never line up.
-     */
-    private float updateAimMotion(float[] targetRotation) {
-        float motion = 0.0F;
-        if (!Float.isNaN(previousAimYaw)) {
-            motion = Math.max(
-                    Math.abs(Mth.degreesDifference(previousAimYaw, targetRotation[0])),
-                    Math.abs(Mth.degreesDifference(previousAimPitch, targetRotation[1]))
-            );
-        }
-        previousAimYaw = targetRotation[0];
-        previousAimPitch = targetRotation[1];
-
-        aimMotion[aimMotionIndex] = motion;
-        aimMotionIndex = (aimMotionIndex + 1) % aimMotion.length;
-
-        float sum = 0.0F;
-        for (float sample : aimMotion) sum += sample;
-        return sum / aimMotion.length;
+    /** Ticks a turn of the configured duration takes: 2 ticks for 100 ms, 3 ticks for 150 ms. */
+    static int turnTicks(double milliseconds) {
+        long ticks = Math.round(milliseconds / MILLIS_PER_TICK);
+        return (int) Math.max(MIN_TURN_TICKS, Math.min(MAX_TURN_TICKS, ticks));
     }
 
-    static float effectiveStep(double configuredStep, float averageAimMotion) {
-        return (float) Math.max(configuredStep, averageAimMotion);
+    /**
+     * Starts a turn when a new target is locked, or when the aim jumped away from the
+     * rotation, and counts its remaining ticks. Inside a turn the swing is spread over
+     * those ticks; afterwards the rotation follows the aim exactly, so the model is on
+     * the enemy and auto fire is allowed to shoot again.
+     */
+    private int updateTurnBudget(Player player, LivingEntity target, float[] targetRotation) {
+        float error = Math.max(
+                Math.abs(Mth.degreesDifference(player.getYRot(), targetRotation[0])),
+                Math.abs(Mth.degreesDifference(player.getXRot(), targetRotation[1]))
+        );
+
+        if (target != turnTarget || (turnTicksLeft <= 0 && error > TURN_START_ANGLE)) {
+            turnTarget = target;
+            turnTicksLeft = turnTicks(Config.aimTurnMs);
+        }
+
+        if (turnTicksLeft <= 0) return 1;
+        return turnTicksLeft--;
     }
 
     private void holdCameraOnAim(float targetYaw, float targetPitch) {
@@ -159,10 +158,8 @@ public class AimbotHandler {
 
     private void releaseCameraAim() {
         cameraAimActive = false;
-        previousAimYaw = Float.NaN;
-        previousAimPitch = Float.NaN;
-        Arrays.fill(aimMotion, 0.0F);
-        aimMotionIndex = 0;
+        turnTicksLeft = 0;
+        turnTarget = null;
     }
 
     private AimDecision getAimDecision(LivingEntity target) {
