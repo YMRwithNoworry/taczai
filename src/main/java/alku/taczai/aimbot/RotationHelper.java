@@ -8,8 +8,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 public class RotationHelper {
-    private static final double AIM_STRENGTH_MULTIPLIER = 2.0;
-    private static final float MIN_SMOOTH_CORRECTION = 0.05F;
+    /** Below this remaining difference the aim counts as reached. */
     private static final float SNAP_ANGLE_THRESHOLD = 0.1F;
 
     public static float[] getTargetRotation(Player player, LivingEntity target) {
@@ -78,38 +77,41 @@ public class RotationHelper {
         );
     }
 
-    public static float smoothAngle(float current, float target, float speed) {
+    /**
+     * Moves {@code current} toward {@code target} by at most {@code maxStepDegrees}.
+     * The exact target is returned once the remaining difference fits into the step,
+     * so the aim always reaches the target instead of asymptotically approaching it.
+     */
+    public static float stepAngle(float current, float target, float maxStepDegrees) {
         float delta = Mth.degreesDifference(current, target);
-        if (Math.abs(delta) < SNAP_ANGLE_THRESHOLD) {
-            return target;
+        float step = Math.max(maxStepDegrees, SNAP_ANGLE_THRESHOLD);
+        if (Math.abs(delta) <= step) {
+            return Mth.wrapDegrees(target);
         }
-
-        float correction = (float) Math.min(1.0, Math.max(0.0, (1.0 - speed) * AIM_STRENGTH_MULTIPLIER));
-        // Even at the slowest configured speed the aim must keep approaching the
-        // target; otherwise a 1.0 speed value would freeze the crosshair.
-        correction = Math.max(correction, MIN_SMOOTH_CORRECTION);
-        return current + delta * correction;
+        return Mth.wrapDegrees(current + Math.copySign(maxStepDegrees, delta));
     }
 
-    public static void applySmoothRotation(Player player, float targetYaw, float targetPitch) {
-        float speed = (float) Mth.clamp(Config.aimSpeed, 0.0, 1.0);
+    /**
+     * Turns the player's own rotation - the one the client reports to the server and
+     * the one other players see on the model - toward the aim at a limited rate, so
+     * the turn has a visible process instead of a single snap.
+     *
+     * @return true when the rotation reached the aim on this tick, i.e. the turn was
+     *         not rate limited. TACZ reads the shot direction from the server side
+     *         rotation, so auto fire only shoots while this holds.
+     */
+    public static boolean turnTowards(Player player, float targetYaw, float targetPitch, float maxStepDegrees) {
+        float allowed = Math.max(maxStepDegrees, SNAP_ANGLE_THRESHOLD);
+        boolean reached = Math.abs(Mth.degreesDifference(player.getYRot(), targetYaw)) <= allowed
+                && Math.abs(Mth.degreesDifference(player.getXRot(), targetPitch)) <= allowed;
 
-        float newYaw = smoothAngle(player.getYRot(), targetYaw, speed);
-        float newPitch = smoothAngle(player.getXRot(), targetPitch, speed);
-
-        player.setYRot(Mth.wrapDegrees(newYaw));
-        player.setXRot(Mth.clamp(newPitch, -90.0F, 90.0F));
+        player.setYRot(stepAngle(player.getYRot(), targetYaw, maxStepDegrees));
+        player.setXRot(Mth.clamp(stepAngle(player.getXRot(), targetPitch, maxStepDegrees), -90.0F, 90.0F));
+        return reached;
     }
 
     public static void applySnapRotation(Player player, float targetYaw, float targetPitch) {
         player.setYRot(Mth.wrapDegrees(targetYaw));
         player.setXRot(Mth.clamp(targetPitch, -90.0F, 90.0F));
-    }
-
-    static boolean isAligned(Player player, float[] targetRotation, float toleranceDegrees) {
-        if (player == null || targetRotation == null || targetRotation.length < 2) return false;
-        float yawError = Math.abs(Mth.degreesDifference(player.getYRot(), targetRotation[0]));
-        float pitchError = Math.abs(player.getXRot() - targetRotation[1]);
-        return yawError <= toleranceDegrees && pitchError <= toleranceDegrees;
     }
 }

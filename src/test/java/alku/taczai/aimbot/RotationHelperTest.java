@@ -21,22 +21,35 @@ class RotationHelperTest {
     }
 
     @Test
-    void aimStrengthCorrectsMoreThanTheOriginalLinearSmoothing() {
-        float strengthened = RotationHelper.smoothAngle(0.0F, 90.0F, 0.3F);
-        float original = 90.0F * (1.0F - 0.3F);
-
-        assertTrue(strengthened > original);
-        assertEquals(90.0F, strengthened);
+    void turnStepIsLimitedToTheConfiguredRate() {
+        assertEquals(6.0F, RotationHelper.stepAngle(0.0F, 90.0F, 6.0F), 1.0e-4);
+        assertEquals(-6.0F, RotationHelper.stepAngle(0.0F, -90.0F, 6.0F), 1.0e-4);
     }
 
     @Test
-    void slowestAimSpeedStillConvergesInsteadOfFreezing() {
+    void turnStepLandsExactlyOnTheAimWhenTheRestFitsIntoTheStep() {
+        assertEquals(4.0F, RotationHelper.stepAngle(0.0F, 4.0F, 6.0F), 1.0e-4);
+        assertEquals(90.0F, RotationHelper.stepAngle(86.0F, 90.0F, 6.0F), 1.0e-4);
+    }
+
+    @Test
+    void slowTurnRateStillConvergesInsteadOfFreezing() {
         float angle = 0.0F;
         for (int tick = 0; tick < 200 && angle != 90.0F; tick++) {
-            angle = RotationHelper.smoothAngle(angle, 90.0F, 1.0F);
+            angle = RotationHelper.stepAngle(angle, 90.0F, 1.0F);
         }
 
         assertEquals(90.0F, angle, 1.0e-3);
+    }
+
+    @Test
+    void turnStepTakesTheShortWayAcrossTheYawSeam() {
+        float angle = -176.0F;
+        for (int tick = 0; tick < 10 && angle != 176.0F; tick++) {
+            angle = RotationHelper.stepAngle(angle, 176.0F, 6.0F);
+        }
+
+        assertEquals(176.0F, angle, 1.0e-3);
     }
 
     @Test

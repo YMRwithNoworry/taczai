@@ -6,7 +6,7 @@
     "config.taczai.title": "TaczAI 配置",
     "config.taczai.aiming": "自动瞄准",
     "config.taczai.range": "最大射程",
-    "config.taczai.speed": "瞄准平滑度",
+    "config.taczai.turn_speed": "转头速度（度/刻）",
     "config.taczai.fov": "FOV角度",
     "config.taczai.head": "瞄准头部",
     "config.taczai.autofire": "自动开火",

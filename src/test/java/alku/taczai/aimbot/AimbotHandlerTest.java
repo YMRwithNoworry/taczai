@@ -2,6 +2,7 @@ package alku.taczai.aimbot;
 
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -26,6 +27,13 @@ class AimbotHandlerTest {
     void autoFireWaitsUntilTaczWillAcceptTheShot() {
         assertFalse(AimbotHandler.shouldAutoFire(false, true, 50L));
         assertFalse(AimbotHandler.shouldAutoFire(false, true, 120L));
+    }
+
+    @Test
+    void theTurnRateGrowsWithTargetsThatKeepMovingFaster() {
+        assertEquals(6.0F, AimbotHandler.effectiveStep(6.0, 0.0F), 1.0e-4);
+        assertEquals(6.0F, AimbotHandler.effectiveStep(6.0, 4.0F), 1.0e-4);
+        assertEquals(9.0F, AimbotHandler.effectiveStep(6.0, 9.0F), 1.0e-4);
     }
 
     @Test

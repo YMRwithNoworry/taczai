@@ -16,9 +16,13 @@ public class Config {
             .comment("Maximum distance (in blocks) for auto-aim to track targets")
             .defineInRange("aimbotRange", 150, 5, 256);
 
-    private static final ForgeConfigSpec.DoubleValue AIM_SPEED = BUILDER
-            .comment("Aiming smoothness (0.0 = instant snap, 1.0 = very slow)")
-            .defineInRange("aimSpeed", 0.3, 0.0, 1.0);
+    private static final ForgeConfigSpec.DoubleValue AIM_TURN_SPEED = BUILDER
+            .comment("Maximum degrees per tick the player model may turn toward a target.",
+                    "The rotation sent to the server moves at this rate, so other players",
+                    "see the head/body turn over several ticks instead of snapping.",
+                    "Lower = smoother for observers; auto fire waits until the turn is",
+                    "finished, so very low values delay the first shot of a new target.")
+            .defineInRange("aimTurnSpeed", 6.0, 1.0, 90.0);
 
     private static final ForgeConfigSpec.DoubleValue AIMBOT_FOV = BUILDER
             .comment("Maximum angular offset from the crosshair in degrees")
@@ -51,7 +55,7 @@ public class Config {
     static final ForgeConfigSpec SPEC = BUILDER.build();
 
     public static int aimbotRange;
-    public static double aimSpeed;
+    public static double aimTurnSpeed;
     public static double aimbotFov;
     public static boolean aimAtHead;
     public static boolean autoFire;
@@ -63,7 +67,7 @@ public class Config {
     @SubscribeEvent
     static void onLoad(final ModConfigEvent event) {
         aimbotRange = AIMBOT_RANGE.get();
-        aimSpeed = AIM_SPEED.get();
+        aimTurnSpeed = AIM_TURN_SPEED.get();
         aimbotFov = AIMBOT_FOV.get();
         aimAtHead = AIM_AT_HEAD.get();
         autoFire = AUTO_FIRE.get();
@@ -82,24 +86,24 @@ public class Config {
         SPEC.save();
     }
 
-    public static void updateAiming(int range, double speed, double fov, boolean head, boolean fire) {
-        updateAiming(range, speed, fov, head, fire, headshotRate, showFovCircle);
+    public static void updateAiming(int range, double turnSpeed, double fov, boolean head, boolean fire) {
+        updateAiming(range, turnSpeed, fov, head, fire, headshotRate, showFovCircle);
     }
 
     public static void updateAiming(
             int range,
-            double speed,
+            double turnSpeed,
             double fov,
             boolean head,
             boolean fire,
             double configuredHeadshotRate
     ) {
-        updateAiming(range, speed, fov, head, fire, configuredHeadshotRate, showFovCircle);
+        updateAiming(range, turnSpeed, fov, head, fire, configuredHeadshotRate, showFovCircle);
     }
 
     public static void updateAiming(
             int range,
-            double speed,
+            double turnSpeed,
             double fov,
             boolean head,
             boolean fire,
@@ -108,14 +112,14 @@ public class Config {
     ) {
         double safeHeadshotRate = clampPercentage(configuredHeadshotRate);
         AIMBOT_RANGE.set(range);
-        AIM_SPEED.set(speed);
+        AIM_TURN_SPEED.set(turnSpeed);
         AIMBOT_FOV.set(fov);
         AIM_AT_HEAD.set(head);
         AUTO_FIRE.set(fire);
         HEADSHOT_RATE.set(safeHeadshotRate);
         SHOW_FOV_CIRCLE.set(showCircle);
         aimbotRange = range;
-        aimSpeed = speed;
+        aimTurnSpeed = turnSpeed;
         aimbotFov = fov;
         aimAtHead = head;
         autoFire = fire;

@@ -1,5 +1,21 @@
 {
     "key.category.taczai": "TaczAI - 自动瞄准",
     "key.taczai.toggle_aimbot": "开关自动瞄准",
-    "key.taczai.switch_mode": "切换瞄准模式(手动/自动)"
+    "message.taczai.teammate_added": "已将 %s 添加为永久队友",
+    "message.taczai.teammate_removed": "已将 %s 移出永久队友",
+    "config.taczai.title": "TaczAI 配置",
+    "config.taczai.aiming": "自动瞄准",
+    "config.taczai.range": "最大射程",
+    "config.taczai.turn_speed": "转头速度（度/刻）",
+    "config.taczai.fov": "FOV角度",
+    "config.taczai.head": "瞄准头部",
+    "config.taczai.autofire": "自动开火",
+    "config.taczai.fov_circle": "准星显示 FOV 范围圆",
+    "config.taczai.headshot_rate": "爆头率（百分比）",
+    "config.taczai.teammates": "队友管理",
+    "config.taczai.teammate_yes": "队友",
+    "config.taczai.teammate_no": "非队友",
+    "config.taczai.player_online": "在线玩家",
+    "config.taczai.player_offline": "已保存的离线玩家",
+    "config.taczai.teammates_empty": "当前没有可配置的玩家"
 }
