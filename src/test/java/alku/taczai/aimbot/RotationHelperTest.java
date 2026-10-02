@@ -21,9 +21,25 @@ class RotationHelperTest {
     }
 
     @Test
-    void aTurnIsSpreadOverTheConfiguredTicks() {
-        assertEquals(45.0F, RotationHelper.stepAngle(0.0F, 90.0F, 2), 1.0e-4);
-        assertEquals(30.0F, RotationHelper.stepAngle(0.0F, 90.0F, 3), 1.0e-4);
+    void aThreeTickTurnEasesIntoTheAim() {
+        // 90 degrees over three ticks: 50 up front, then 30, then the last 10 to arrive.
+        assertEquals(50.0F, RotationHelper.stepAngle(0.0F, 90.0F, 3), 1.0e-3);
+        assertEquals(80.0F, RotationHelper.stepAngle(50.0F, 90.0F, 2), 1.0e-3);
+        assertEquals(90.0F, RotationHelper.stepAngle(80.0F, 90.0F, 1), 1.0e-3);
+    }
+
+    @Test
+    void everyTickOfATurnMovesLessThanTheOneBeforeIt() {
+        float angle = 0.0F;
+        float previousStep = Float.MAX_VALUE;
+        for (int remaining = 3; remaining >= 1; remaining--) {
+            float next = RotationHelper.stepAngle(angle, 90.0F, remaining);
+            float step = Math.abs(next - angle);
+
+            assertTrue(step < previousStep);
+            previousStep = step;
+            angle = next;
+        }
     }
 
     @Test

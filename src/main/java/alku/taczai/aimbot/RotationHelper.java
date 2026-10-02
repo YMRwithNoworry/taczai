@@ -77,17 +77,35 @@ public class RotationHelper {
         );
     }
 
+    /** Deceleration exponent of the turn curve: 2.0 is an ease out, 1.0 would be linear. */
+    private static final double TURN_EASE_OUT_EXPONENT = 2.0;
+
     /**
-     * Moves {@code current} the remaining share of the way to {@code target} so that
-     * the whole turn is finished after {@code remainingSteps} ticks. The last tick
-     * returns the exact target, so a turn always ends on the aim and never trails it.
+     * Share of the remaining angle that is covered on a tick which still has
+     * {@code remainingTicks} ticks to go (including this one). It follows the ease out
+     * curve {@code 1 - (1 - t)^2}: the swing starts at its fastest and bleeds off speed
+     * as it arrives, instead of moving at a constant rate like a turret.
      */
-    public static float stepAngle(float current, float target, int remainingSteps) {
-        if (remainingSteps <= 1) {
+    public static float turnShare(int remainingTicks) {
+        if (remainingTicks <= 1) {
+            return 1.0F;
+        }
+        double before = remainingTicks;
+        double after = remainingTicks - 1.0;
+        return (float) (1.0 - Math.pow(after / before, TURN_EASE_OUT_EXPONENT));
+    }
+
+    /**
+     * Moves {@code current} along the remaining part of the way to {@code target} so the
+     * whole turn is finished after {@code remainingTicks} ticks. The last tick returns
+     * the exact target, so a turn always ends on the aim and never trails it.
+     */
+    public static float stepAngle(float current, float target, int remainingTicks) {
+        if (remainingTicks <= 1) {
             return Mth.wrapDegrees(target);
         }
         float delta = Mth.degreesDifference(current, target);
-        return Mth.wrapDegrees(current + delta / remainingSteps);
+        return Mth.wrapDegrees(current + delta * turnShare(remainingTicks));
     }
 
     /**
