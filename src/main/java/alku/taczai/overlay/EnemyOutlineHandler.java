@@ -3,11 +3,14 @@ package alku.taczai.overlay;
 import alku.taczai.keybind.KeyMappings;
 import alku.taczai.teammate.TeammateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.BufferBuilder;
+import com.mojang.blaze3d.vertex.BufferUploader;
+import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.Tesselator;
+import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.GameRenderer;
 import net.minecraft.client.renderer.LevelRenderer;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.RenderType;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
@@ -21,39 +24,33 @@ public class EnemyOutlineHandler {
 
     @SubscribeEvent
     public void onRenderLevel(RenderLevelStageEvent event) {
-        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_ENTITIES) return;
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_ENTITIES || !KeyMappings.aimbotEnabled) return;
 
         Minecraft minecraft = Minecraft.getInstance();
         Player localPlayer = minecraft.player;
         if (localPlayer == null || minecraft.level == null) return;
 
-        PoseStack poseStack = event.getPoseStack();
         Vec3 camera = event.getCamera().getPosition();
-        MultiBufferSource.BufferSource buffers = minecraft.renderBuffers().bufferSource();
+        BufferBuilder builder = Tesselator.getInstance().getBuilder();
+        boolean builderStarted = false;
 
         RenderSystem.disableDepthTest();
         try {
             for (Player player : minecraft.level.players()) {
-                boolean enemy = shouldOutline(
-                        KeyMappings.aimbotEnabled,
-                        player == localPlayer,
-                        TeammateManager.isEffectiveTeammate(localPlayer, player),
-                        player.isAlive()
-                );
-                if (!enemy) continue;
+                if (player == localPlayer || !player.isAlive()) continue;
+                boolean teammate = TeammateManager.isEffectiveTeammate(localPlayer, player);
+                if (!shouldOutline(true, false, teammate, true)) continue;
 
+                if (!builderStarted) {
+                    RenderSystem.setShader(GameRenderer::getPositionColorShader);
+                    builder.begin(VertexFormat.Mode.LINES, DefaultVertexFormat.POSITION_COLOR);
+                    builderStarted = true;
+                }
                 AABB box = player.getBoundingBox().inflate(0.03).move(-camera.x, -camera.y, -camera.z);
-                LevelRenderer.renderLineBox(
-                        poseStack,
-                        buffers.getBuffer(RenderType.lines()),
-                        box,
-                        RED,
-                        GREEN,
-                        BLUE,
-                        1.0F
-                );
+                LevelRenderer.renderLineBox(event.getPoseStack(), builder, box, RED, GREEN, BLUE, 1.0F);
             }
-            buffers.endBatch(RenderType.lines());
+
+            if (builderStarted) BufferUploader.drawWithShader(builder.end());
         } finally {
             RenderSystem.enableDepthTest();
         }

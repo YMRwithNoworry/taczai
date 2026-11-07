@@ -51,8 +51,8 @@ public class Taczai {
         KeyMappings.register();
         MouseInputHandler.register();
         MinecraftForge.EVENT_BUS.register(new AimbotHandler());
-        MinecraftForge.EVENT_BUS.register(new AimbotOverlay());
         MinecraftForge.EVENT_BUS.register(new EnemyOutlineHandler());
+        MinecraftForge.EVENT_BUS.register(new AimbotOverlay());
         MinecraftForge.EVENT_BUS.register(new TeammateFrameRenderer());
         MinecraftForge.EVENT_BUS.register(new TeammateNameRenderer());
     }
