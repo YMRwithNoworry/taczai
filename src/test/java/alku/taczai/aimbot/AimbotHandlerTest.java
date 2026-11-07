@@ -9,24 +9,23 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class AimbotHandlerTest {
     @Test
     void autoFireStopsWhileReloading() {
-        assertFalse(AimbotHandler.shouldAutoFire(true, true, 0L));
+        assertFalse(AimbotHandler.shouldAutoFire(true, 0L));
     }
 
     @Test
-    void autoFireWaitsUntilAdsProgressIsCompleteForGuaranteedAccuracy() {
-        assertFalse(AimbotHandler.shouldAutoFire(false, false, 0L));
-        assertTrue(AimbotHandler.shouldAutoFire(false, true, 0L));
+    void autoFireDoesNotWaitForAdsProgressOrPlayerMovement() {
+        assertTrue(AimbotHandler.shouldAutoFire(false, 0L));
     }
 
     @Test
     void autoFireStopsWhenTheGunIndexIsUnknown() {
-        assertFalse(AimbotHandler.shouldAutoFire(false, true, -1L));
+        assertFalse(AimbotHandler.shouldAutoFire(false, -1L));
     }
 
     @Test
     void autoFireWaitsUntilTaczWillAcceptTheShot() {
-        assertFalse(AimbotHandler.shouldAutoFire(false, true, 50L));
-        assertFalse(AimbotHandler.shouldAutoFire(false, true, 120L));
+        assertFalse(AimbotHandler.shouldAutoFire(false, 50L));
+        assertFalse(AimbotHandler.shouldAutoFire(false, 120L));
     }
 
     @Test
@@ -46,8 +45,8 @@ class AimbotHandlerTest {
 
     @Test
     void autoFireRunsAsSoonAsTaczCooldownAllowsIt() {
-        assertTrue(AimbotHandler.shouldAutoFire(false, true, 0L));
-        assertTrue(AimbotHandler.shouldAutoFire(false, true, 25L));
-        assertTrue(AimbotHandler.shouldAutoFire(false, true, 49L));
+        assertTrue(AimbotHandler.shouldAutoFire(false, 0L));
+        assertTrue(AimbotHandler.shouldAutoFire(false, 25L));
+        assertTrue(AimbotHandler.shouldAutoFire(false, 49L));
     }
 }

@@ -24,8 +24,6 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 public class AimbotHandler {
     /** TACZ returns COOL_DOWN while the remaining client cooldown is 50 ms or more. */
     private static final long SHOOT_COOLDOWN_THRESHOLD = 50L;
-    /** TACZ only applies the full ADS accuracy bonus once aiming progress reaches 1. */
-    private static final float AIM_PROGRESS_READY = 0.999F;
     /** A rotation error above this is a real turn (new target, mouse drag), not tracking. */
     private static final float TURN_START_ANGLE = 10.0F;
     /** Milliseconds per tick: the server hands the visible turn to other clients at 20 tps. */
@@ -98,9 +96,9 @@ public class AimbotHandler {
         updateForcedAim(mc.player, Config.autoFire);
 
         float[] targetRot = RotationHelper.getTargetRotation(player, lockedTarget, decision);
-        // The rotation the server sees - and therefore what other players see on the
-        // model - is spread over the configured turn time instead of snapping at once.
-        int turnSteps = updateTurnBudget(player, lockedTarget, targetRot);
+        // Auto-fire snaps the server-visible rotation to the aim this tick; manual aim
+        // keeps the configured gradual turn.
+        int turnSteps = Config.autoFire ? 1 : updateTurnBudget(player, lockedTarget, targetRot);
         boolean aimReached = RotationHelper.turnTowards(player, targetRot[0], targetRot[1], turnSteps);
         holdCameraOnAim(targetRot[0], targetRot[1]);
         if (Config.autoFire && mc.screen == null) handleAutoFire(player, targetRot, aimReached);
@@ -185,9 +183,8 @@ public class AimbotHandler {
 
         IGunOperator gunOperator = IGunOperator.fromLivingEntity(localPlayer);
         boolean reloading = gunOperator.getSynReloadState().getStateType().isReloading();
-        boolean aimed = gunOperator.getSynAimingProgress() >= AIM_PROGRESS_READY;
         long shootCooldown = operator.getClientShootCoolDown();
-        if (!shouldAutoFire(reloading, aimed, shootCooldown)) return;
+        if (!shouldAutoFire(reloading, shootCooldown)) return;
 
         // TACZ takes the shot direction from the server side rotation, and the server
         // only knows the rotation that was already sent. Shooting before the visible
@@ -233,9 +230,8 @@ public class AimbotHandler {
         }
     }
 
-    static boolean shouldAutoFire(boolean reloading, boolean aimed, long shootCooldown) {
+    static boolean shouldAutoFire(boolean reloading, long shootCooldown) {
         return !reloading
-                && aimed
                 && shootCooldown >= 0L
                 && shootCooldown < SHOOT_COOLDOWN_THRESHOLD;
     }
