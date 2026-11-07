@@ -38,8 +38,8 @@ public final class TaczaiConfigScreen {
 
         aiming.addEntry(entries.startIntSlider(Component.translatable("config.taczai.range"), range[0], 5, 256)
                 .setDefaultValue(150).setSaveConsumer(value -> range[0] = value).build());
-        aiming.addEntry(entries.startIntSlider(Component.translatable("config.taczai.turn_duration"), turnMs[0], 0, 150)
-                .setDefaultValue(125).setSaveConsumer(value -> turnMs[0] = value).build());
+        aiming.addEntry(entries.startIntField(Component.translatable("config.taczai.turn_duration"), turnMs[0])
+                .setDefaultValue(125).setMin(0).setMax(150).setSaveConsumer(value -> turnMs[0] = value).build());
         aiming.addEntry(entries.startDoubleField(Component.translatable("config.taczai.fov"), fov[0])
                 .setDefaultValue(20.0).setMin(1.0).setMax(180.0).setSaveConsumer(value -> fov[0] = value).build());
         aiming.addEntry(entries.startBooleanToggle(Component.translatable("config.taczai.head"), head[0])
