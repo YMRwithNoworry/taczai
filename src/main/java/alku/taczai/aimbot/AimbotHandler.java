@@ -30,7 +30,7 @@ public class AimbotHandler {
     private static final float TURN_START_ANGLE = 10.0F;
     /** Milliseconds per tick: the server hands the visible turn to other clients at 20 tps. */
     private static final double MILLIS_PER_TICK = 50.0;
-    private static final int MIN_TURN_TICKS = 2;
+    private static final int MIN_TURN_TICKS = 0;
     private static final int MAX_TURN_TICKS = 3;
 
     private LivingEntity lockedTarget = null;

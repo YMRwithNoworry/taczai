@@ -30,7 +30,8 @@ class AimbotHandlerTest {
     }
 
     @Test
-    void theTurnDurationIsConvertedToWholeTicks() {
+    void theTurnDurationIsConvertedToWholeTicksIncludingZeroDelay() {
+        assertEquals(0, AimbotHandler.turnTicks(0.0));
         assertEquals(2, AimbotHandler.turnTicks(100.0));
         assertEquals(2, AimbotHandler.turnTicks(120.0));
         assertEquals(3, AimbotHandler.turnTicks(125.0));
@@ -39,7 +40,7 @@ class AimbotHandlerTest {
 
     @Test
     void theTurnDurationStaysInsideTheConfiguredWindow() {
-        assertEquals(2, AimbotHandler.turnTicks(1.0));
+        assertEquals(0, AimbotHandler.turnTicks(-1.0));
         assertEquals(3, AimbotHandler.turnTicks(1000.0));
     }
 

@@ -18,10 +18,8 @@ public class Config {
 
     private static final ForgeConfigSpec.IntValue AIM_TURN_MS = BUILDER
             .comment("How long the player model may take to swing onto a target, in milliseconds.",
-                    "The rotation sent to the server is spread over that time (2-3 ticks), so",
-                    "other players see the head turn instead of one snap. The model is exactly",
-                    "on the enemy when the turn ends, and auto fire shoots from that tick on.")
-            .defineInRange("aimTurnMs", 125, 100, 150);
+                    "Set to 0 to remove the visible turn delay and snap to the target.")
+            .defineInRange("aimTurnMs", 125, 0, 150);
 
     private static final ForgeConfigSpec.DoubleValue AIMBOT_FOV = BUILDER
             .comment("Maximum angular offset from the crosshair in degrees")
