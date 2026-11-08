@@ -41,7 +41,10 @@ public class AimbotHandler {
     private float cameraAimYaw = 0.0F;
     private float cameraAimPitch = 0.0F;
 
-    /** Ticks left of the visible turn; zero or less means the rotation follows the aim. */
+    /** Cached aim for frame-rate fire attempts; shot cooldown remains owned by TACZ. */
+    private boolean autoFirePending = false;
+    private float autoFireYaw = 0.0F;
+    private float autoFirePitch = 0.0F;
     private int turnTicksLeft = 0;
     private LivingEntity turnTarget = null;
 
@@ -101,7 +104,29 @@ public class AimbotHandler {
         int turnSteps = Config.autoFire ? 1 : updateTurnBudget(player, lockedTarget, targetRot);
         boolean aimReached = RotationHelper.turnTowards(player, targetRot[0], targetRot[1], turnSteps);
         holdCameraOnAim(targetRot[0], targetRot[1]);
-        if (Config.autoFire && mc.screen == null) handleAutoFire(player, targetRot, aimReached);
+        autoFirePending = Config.autoFire && aimReached;
+        if (autoFirePending) {
+            autoFireYaw = targetRot[0];
+            autoFirePitch = targetRot[1];
+        }
+    }
+    @SubscribeEvent
+    public void onRenderTick(TickEvent.RenderTickEvent event) {
+        if (event.phase != TickEvent.Phase.END || !autoFirePending || !Config.autoFire) return;
+
+        Minecraft mc = Minecraft.getInstance();
+        LocalPlayer player = mc.player;
+        if (player == null
+                || mc.level == null
+                || mc.screen != null
+                || !KeyMappings.aimbotEnabled
+                || !isHoldingTaczGun(player)
+                || !TargetSelector.isTrackableTarget(player, lockedTarget)) {
+            autoFirePending = false;
+            return;
+        }
+
+        handleAutoFire(player, autoFireYaw, autoFirePitch);
     }
 
     /**
@@ -156,6 +181,7 @@ public class AimbotHandler {
 
     private void releaseCameraAim() {
         cameraAimActive = false;
+        autoFirePending = false;
         turnTicksLeft = 0;
         turnTarget = null;
     }
@@ -175,9 +201,7 @@ public class AimbotHandler {
         decisionTarget = null;
     }
 
-    private void handleAutoFire(Player player, float[] targetRotation, boolean aimReached) {
-        if (!(player instanceof LocalPlayer localPlayer)) return;
-
+    private void handleAutoFire(LocalPlayer localPlayer, float targetYaw, float targetPitch) {
         IClientPlayerGunOperator operator = IClientPlayerGunOperator.fromLocalPlayer(localPlayer);
         if (operator == null) return;
 
@@ -186,18 +210,14 @@ public class AimbotHandler {
         long shootCooldown = operator.getClientShootCoolDown();
         if (!shouldAutoFire(reloading, shootCooldown)) return;
 
-        // TACZ takes the shot direction from the server side rotation, and the server
-        // only knows the rotation that was already sent. Shooting before the visible
-        // turn finished would fire along the still travelling rotation.
-        if (!aimReached) return;
-
-        // The turn is already at the aim at this point; this only removes the last
-        // fraction of a degree, which other players cannot see.
-        RotationHelper.applySnapRotation(localPlayer, targetRotation[0], targetRotation[1]);
+        RotationHelper.applySnapRotation(localPlayer, targetYaw, targetPitch);
         syncAimToServer(localPlayer);
 
         ShootResult result = operator.shoot();
-        if (result == ShootResult.SUCCESS) clearAimDecision();
+        if (result == ShootResult.SUCCESS) {
+            autoFirePending = false;
+            clearAimDecision();
+        }
     }
 
     private void syncAimToServer(LocalPlayer player) {
