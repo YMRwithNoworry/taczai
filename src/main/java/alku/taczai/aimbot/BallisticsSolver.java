@@ -4,13 +4,10 @@ import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.phys.Vec3;
 
 /**
- * Solves the actual TACZ projectile trajectory.
+ * Solves the aim direction from configured bullet speed, friction, and gravity.
  *
- * <p>TACZ bullets move once per tick. The initial velocity is
- * {@code direction * speedPerTick + shooterVelocity}, then every tick the
- * velocity is multiplied by {@code 1 - friction} and gravity is subtracted.
- * This class reproduces that model so the aim direction points at the place
- * where the bullet and a moving target meet, including bullet drop.</p>
+ * <p>The solver leads moving targets and compensates for bullet drop, but keeps the
+ * launch direction independent of the shooter's movement.</p>
  */
 final class BallisticsSolver {
     static final double TICKS_PER_SECOND = 20.0;
@@ -59,15 +56,6 @@ final class BallisticsSolver {
         );
     }
 
-    /** The velocity TACZ adds to the bullet; vertical motion is ignored while grounded. */
-    static Vec3 shooterVelocity(LivingEntity shooter) {
-        Vec3 delta = shooter.getDeltaMovement();
-        if (shooter.onGround()) {
-            return new Vec3(delta.x, 0.0, delta.z);
-        }
-        return delta;
-    }
-
     /**
      * Last observed per-tick displacement of the target. TACZ's own hitbox
      * compensation uses the same difference, which makes it more reliable for
@@ -83,7 +71,6 @@ final class BallisticsSolver {
 
     static AimSolution solve(
             Vec3 spawn,
-            Vec3 shooterVelocity,
             Vec3 targetPoint,
             Vec3 targetVelocity,
             Parameters parameters
@@ -101,14 +88,14 @@ final class BallisticsSolver {
 
         double previousTime = 0.0;
         double previousError = interceptError(
-                spawn, shooterVelocity, targetPoint, targetVelocity, parameters, previousTime
+                spawn, targetPoint, targetVelocity, parameters, previousTime
         );
         double bestTime = 0.0;
         double bestError = Double.POSITIVE_INFINITY;
 
         for (double time = SEARCH_STEP_TICKS; time <= maxFlightTicks + 1.0e-9; time += SEARCH_STEP_TICKS) {
             double error = interceptError(
-                    spawn, shooterVelocity, targetPoint, targetVelocity, parameters, time
+                    spawn, targetPoint, targetVelocity, parameters, time
             );
             if (Double.isFinite(error)) {
                 double absoluteError = Math.abs(error);
@@ -122,10 +109,10 @@ final class BallisticsSolver {
                 // earliest valid intercept.
                 if (previousError > 0.0 && error <= 0.0) {
                     double root = refineRoot(
-                            spawn, shooterVelocity, targetPoint, targetVelocity, parameters, previousTime, time
+                            spawn, targetPoint, targetVelocity, parameters, previousTime, time
                     );
                     return solutionAt(
-                            spawn, shooterVelocity, targetPoint, targetVelocity, parameters, root
+                            spawn, targetPoint, targetVelocity, parameters, root
                     );
                 }
             }
@@ -137,7 +124,7 @@ final class BallisticsSolver {
         // No sign change means the bullet cannot reach the target inside its
         // lifetime. Keep a best-effort direct aim instead of breaking target lock.
         if (Double.isFinite(bestError) && bestError <= parameters.speedPerTick() * 1.0e-3) {
-            return solutionAt(spawn, shooterVelocity, targetPoint, targetVelocity, parameters, bestTime);
+            return solutionAt(spawn, targetPoint, targetVelocity, parameters, bestTime);
         }
         return directSolution(toTarget);
     }
@@ -149,12 +136,11 @@ final class BallisticsSolver {
     static Vec3 positionAtTime(
             Vec3 spawn,
             Vec3 direction,
-            Vec3 shooterVelocity,
             Parameters parameters,
             double ticks
     ) {
         double travel = travelFactor(ticks, parameters.friction());
-        Vec3 initialVelocity = direction.normalize().scale(parameters.speedPerTick()).add(shooterVelocity);
+        Vec3 initialVelocity = direction.normalize().scale(parameters.speedPerTick());
         return spawn.add(initialVelocity.scale(travel))
                 .add(0.0, -gravityDisplacement(ticks, parameters.gravity(), parameters.friction()), 0.0);
     }
@@ -190,7 +176,6 @@ final class BallisticsSolver {
 
     private static double interceptError(
             Vec3 spawn,
-            Vec3 shooterVelocity,
             Vec3 targetPoint,
             Vec3 targetVelocity,
             Parameters parameters,
@@ -207,8 +192,7 @@ final class BallisticsSolver {
                 .subtract(spawn)
                 .add(0.0, drop, 0.0)
                 .scale(1.0 / travel);
-        Vec3 launchVector = requiredInitialVelocity.subtract(shooterVelocity);
-        double requiredSpeed = launchVector.length();
+        double requiredSpeed = requiredInitialVelocity.length();
         if (!Double.isFinite(requiredSpeed)) {
             return Double.POSITIVE_INFINITY;
         }
@@ -217,7 +201,6 @@ final class BallisticsSolver {
 
     private static AimSolution solutionAt(
             Vec3 spawn,
-            Vec3 shooterVelocity,
             Vec3 targetPoint,
             Vec3 targetVelocity,
             Parameters parameters,
@@ -234,16 +217,14 @@ final class BallisticsSolver {
                 .subtract(spawn)
                 .add(0.0, drop, 0.0)
                 .scale(1.0 / travel);
-        Vec3 launchVector = requiredInitialVelocity.subtract(shooterVelocity);
-        if (launchVector.lengthSqr() < DIRECTION_EPSILON_SQR) {
-            launchVector = targetPoint.subtract(spawn);
+        if (requiredInitialVelocity.lengthSqr() < DIRECTION_EPSILON_SQR) {
+            requiredInitialVelocity = targetPoint.subtract(spawn);
         }
-        return new AimSolution(normalizeOrZero(launchVector), time, true);
+        return new AimSolution(normalizeOrZero(requiredInitialVelocity), time, true);
     }
 
     private static double refineRoot(
             Vec3 spawn,
-            Vec3 shooterVelocity,
             Vec3 targetPoint,
             Vec3 targetVelocity,
             Parameters parameters,
@@ -255,7 +236,7 @@ final class BallisticsSolver {
         for (int iteration = 0; iteration < REFINE_ITERATIONS; iteration++) {
             double middle = (low + high) * 0.5;
             double error = interceptError(
-                    spawn, shooterVelocity, targetPoint, targetVelocity, parameters, middle
+                    spawn, targetPoint, targetVelocity, parameters, middle
             );
             if (error > 0.0 || !Double.isFinite(error)) {
                 low = middle;

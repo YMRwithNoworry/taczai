@@ -24,19 +24,13 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 public class AimbotHandler {
     /** TACZ returns COOL_DOWN while the remaining client cooldown is 50 ms or more. */
     private static final long SHOOT_COOLDOWN_THRESHOLD = 50L;
-    /** A rotation error above this is a real turn (new target, mouse drag), not tracking. */
-    private static final float TURN_START_ANGLE = 10.0F;
-    /** Milliseconds per tick: the server hands the visible turn to other clients at 20 tps. */
-    private static final double MILLIS_PER_TICK = 50.0;
-    private static final int MIN_TURN_TICKS = 0;
-    private static final int MAX_TURN_TICKS = 3;
 
     private LivingEntity lockedTarget = null;
     private LivingEntity decisionTarget = null;
     private AimDecision aimDecision = null;
     private boolean forcedAim = false;
 
-    /** Aim the local camera is rendered at while the player model turns gradually. */
+    /** Aim the local camera is rendered at while the target remains locked. */
     private boolean cameraAimActive = false;
     private float cameraAimYaw = 0.0F;
     private float cameraAimPitch = 0.0F;
@@ -45,8 +39,6 @@ public class AimbotHandler {
     private boolean autoFirePending = false;
     private float autoFireYaw = 0.0F;
     private float autoFirePitch = 0.0F;
-    private int turnTicksLeft = 0;
-    private LivingEntity turnTarget = null;
 
     @SubscribeEvent
     public void onClientTick(TickEvent.ClientTickEvent event) {
@@ -99,17 +91,15 @@ public class AimbotHandler {
         updateForcedAim(mc.player, Config.autoFire);
 
         float[] targetRot = RotationHelper.getTargetRotation(player, lockedTarget, decision);
-        // Auto-fire snaps the server-visible rotation to the aim this tick; manual aim
-        // keeps the configured gradual turn.
-        int turnSteps = Config.autoFire ? 1 : updateTurnBudget(player, lockedTarget, targetRot);
-        boolean aimReached = RotationHelper.turnTowards(player, targetRot[0], targetRot[1], turnSteps);
+        RotationHelper.applySnapRotation(player, targetRot[0], targetRot[1]);
         holdCameraOnAim(targetRot[0], targetRot[1]);
-        autoFirePending = Config.autoFire && aimReached;
+        autoFirePending = Config.autoFire;
         if (autoFirePending) {
             autoFireYaw = targetRot[0];
             autoFirePitch = targetRot[1];
         }
     }
+
     @SubscribeEvent
     public void onRenderTick(TickEvent.RenderTickEvent event) {
         if (event.phase != TickEvent.Phase.END || !autoFirePending || !Config.autoFire) return;
@@ -129,10 +119,7 @@ public class AimbotHandler {
         handleAutoFire(player, autoFireYaw, autoFirePitch);
     }
 
-    /**
-     * Renders the local view on the aim even while the player rotation is still
-     * turning, so the shooter does not have to watch the crosshair travel.
-     */
+    /** Renders the local view at the current aim while the target remains locked. */
     @SubscribeEvent
     public void onComputeCameraAngles(ViewportEvent.ComputeCameraAngles event) {
         if (!cameraAimActive) return;
@@ -140,37 +127,8 @@ public class AimbotHandler {
         Minecraft mc = Minecraft.getInstance();
         if (!(event.getCamera().getEntity() instanceof LocalPlayer cameraPlayer) || cameraPlayer != mc.player) return;
 
-        float yawOffset = Mth.wrapDegrees(cameraAimYaw - cameraPlayer.getYRot());
-        float pitchOffset = cameraAimPitch - cameraPlayer.getXRot();
-        event.setYaw(event.getYaw() + yawOffset);
-        event.setPitch(Mth.clamp(event.getPitch() + pitchOffset, -90.0F, 90.0F));
-    }
-
-    /** Ticks a turn of the configured duration takes: 2 ticks for 100 ms, 3 ticks for 150 ms. */
-    static int turnTicks(double milliseconds) {
-        long ticks = Math.round(milliseconds / MILLIS_PER_TICK);
-        return (int) Math.max(MIN_TURN_TICKS, Math.min(MAX_TURN_TICKS, ticks));
-    }
-
-    /**
-     * Starts a turn when a new target is locked, or when the aim jumped away from the
-     * rotation, and counts its remaining ticks. Inside a turn the swing is spread over
-     * those ticks; afterwards the rotation follows the aim exactly, so the model is on
-     * the enemy and auto fire is allowed to shoot again.
-     */
-    private int updateTurnBudget(Player player, LivingEntity target, float[] targetRotation) {
-        float error = Math.max(
-                Math.abs(Mth.degreesDifference(player.getYRot(), targetRotation[0])),
-                Math.abs(Mth.degreesDifference(player.getXRot(), targetRotation[1]))
-        );
-
-        if (target != turnTarget || (turnTicksLeft <= 0 && error > TURN_START_ANGLE)) {
-            turnTarget = target;
-            turnTicksLeft = turnTicks(Config.aimTurnMs);
-        }
-
-        if (turnTicksLeft <= 0) return 1;
-        return turnTicksLeft--;
+        event.setYaw(cameraAimYaw);
+        event.setPitch(Mth.clamp(cameraAimPitch, -90.0F, 90.0F));
     }
 
     private void holdCameraOnAim(float targetYaw, float targetPitch) {
@@ -182,8 +140,6 @@ public class AimbotHandler {
     private void releaseCameraAim() {
         cameraAimActive = false;
         autoFirePending = false;
-        turnTicksLeft = 0;
-        turnTarget = null;
     }
 
     private AimDecision getAimDecision(LivingEntity target) {

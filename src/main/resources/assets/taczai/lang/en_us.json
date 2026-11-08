@@ -6,7 +6,6 @@
     "config.taczai.title": "TaczAI Configuration",
     "config.taczai.aiming": "Auto Aim",
     "config.taczai.range": "Maximum Range",
-    "config.taczai.turn_duration": "Turn Duration (ms; 0 = instant)",
     "config.taczai.fov": "FOV Angle",
     "config.taczai.head": "Aim at Head",
     "config.taczai.autofire": "Auto Fire",

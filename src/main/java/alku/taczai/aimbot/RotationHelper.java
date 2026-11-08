@@ -8,9 +8,6 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 public class RotationHelper {
-    /** Below this remaining difference the aim counts as reached. */
-    private static final float SNAP_ANGLE_THRESHOLD = 0.1F;
-
     public static float[] getTargetRotation(Player player, LivingEntity target) {
         AimDecision decision = AimDecision.sample(Config.aimAtHead, Config.headshotRate);
         return getTargetRotation(player, target, decision);
@@ -18,7 +15,6 @@ public class RotationHelper {
 
     static float[] getTargetRotation(Player player, LivingEntity target, AimDecision decision) {
         Vec3 spawn = BallisticsSolver.spawnPosition(player);
-        Vec3 shooterVelocity = BallisticsSolver.shooterVelocity(player);
         Vec3 targetVelocity = BallisticsSolver.targetVelocity(target);
         Vec3 hitboxOffset = TaczBallistics.getTargetHitboxCenterOffset(target, targetVelocity);
         Vec3 baseAimPoint = TargetSelector.visibleAimPoint(player, target, decision.headshot());
@@ -33,7 +29,7 @@ public class RotationHelper {
 
         BallisticsSolver.Parameters parameters = TaczBallistics.getParameters(player);
         BallisticsSolver.AimSolution solution = BallisticsSolver.solve(
-                spawn, shooterVelocity, aimPoint, targetVelocity, parameters
+                spawn, aimPoint, targetVelocity, parameters
         );
 
         Vec3 direction = solution.hasDirection()
@@ -75,56 +71,6 @@ public class RotationHelper {
                 y,
                 (box.minZ + box.maxZ) * 0.5
         );
-    }
-
-    /** Deceleration exponent of the turn curve: 2.0 is an ease out, 1.0 would be linear. */
-    private static final double TURN_EASE_OUT_EXPONENT = 2.0;
-
-    /**
-     * Share of the remaining angle that is covered on a tick which still has
-     * {@code remainingTicks} ticks to go (including this one). It follows the ease out
-     * curve {@code 1 - (1 - t)^2}: the swing starts at its fastest and bleeds off speed
-     * as it arrives, instead of moving at a constant rate like a turret.
-     */
-    public static float turnShare(int remainingTicks) {
-        if (remainingTicks <= 1) {
-            return 1.0F;
-        }
-        double before = remainingTicks;
-        double after = remainingTicks - 1.0;
-        return (float) (1.0 - Math.pow(after / before, TURN_EASE_OUT_EXPONENT));
-    }
-
-    /**
-     * Moves {@code current} along the remaining part of the way to {@code target} so the
-     * whole turn is finished after {@code remainingTicks} ticks. The last tick returns
-     * the exact target, so a turn always ends on the aim and never trails it.
-     */
-    public static float stepAngle(float current, float target, int remainingTicks) {
-        if (remainingTicks <= 1) {
-            return Mth.wrapDegrees(target);
-        }
-        float delta = Mth.degreesDifference(current, target);
-        return Mth.wrapDegrees(current + delta * turnShare(remainingTicks));
-    }
-
-    /**
-     * Turns the player's own rotation - the one the client reports to the server and
-     * the one other players see on the model - toward the aim over the remaining ticks
-     * of the current turn, so the swing has a visible process instead of one snap.
-     *
-     * @return true when the rotation is on the aim after this call. TACZ reads the shot
-     *         direction from the server side rotation, so auto fire only shoots then.
-     */
-    public static boolean turnTowards(Player player, float targetYaw, float targetPitch, int remainingSteps) {
-        float yawDelta = Mth.degreesDifference(player.getYRot(), targetYaw);
-        float pitchDelta = Mth.degreesDifference(player.getXRot(), targetPitch);
-        boolean onAim = remainingSteps <= 1
-                || (Math.abs(yawDelta) <= SNAP_ANGLE_THRESHOLD && Math.abs(pitchDelta) <= SNAP_ANGLE_THRESHOLD);
-
-        player.setYRot(stepAngle(player.getYRot(), targetYaw, remainingSteps));
-        player.setXRot(Mth.clamp(stepAngle(player.getXRot(), targetPitch, remainingSteps), -90.0F, 90.0F));
-        return onAim;
     }
 
     public static void applySnapRotation(Player player, float targetYaw, float targetPitch) {

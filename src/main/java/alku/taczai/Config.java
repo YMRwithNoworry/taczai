@@ -16,11 +16,6 @@ public class Config {
             .comment("Maximum distance (in blocks) for auto-aim to track targets")
             .defineInRange("aimbotRange", 150, 5, 256);
 
-    private static final ForgeConfigSpec.IntValue AIM_TURN_MS = BUILDER
-            .comment("How long the player model may take to swing onto a target, in milliseconds.",
-                    "Set to 0 to remove the visible turn delay and snap to the target.")
-            .defineInRange("aimTurnMs", 125, 0, 150);
-
     private static final ForgeConfigSpec.DoubleValue AIMBOT_FOV = BUILDER
             .comment("Maximum angular offset from the crosshair in degrees")
             .defineInRange("aimbotFov", 20.0, 1.0, 180.0);
@@ -52,7 +47,6 @@ public class Config {
     static final ForgeConfigSpec SPEC = BUILDER.build();
 
     public static int aimbotRange;
-    public static int aimTurnMs;
     public static double aimbotFov;
     public static boolean aimAtHead;
     public static boolean autoFire;
@@ -64,7 +58,6 @@ public class Config {
     @SubscribeEvent
     static void onLoad(final ModConfigEvent event) {
         aimbotRange = AIMBOT_RANGE.get();
-        aimTurnMs = AIM_TURN_MS.get();
         aimbotFov = AIMBOT_FOV.get();
         aimAtHead = AIM_AT_HEAD.get();
         autoFire = AUTO_FIRE.get();
@@ -83,24 +76,8 @@ public class Config {
         SPEC.save();
     }
 
-    public static void updateAiming(int range, int turnMs, double fov, boolean head, boolean fire) {
-        updateAiming(range, turnMs, fov, head, fire, headshotRate, showFovCircle);
-    }
-
     public static void updateAiming(
             int range,
-            int turnMs,
-            double fov,
-            boolean head,
-            boolean fire,
-            double configuredHeadshotRate
-    ) {
-        updateAiming(range, turnMs, fov, head, fire, configuredHeadshotRate, showFovCircle);
-    }
-
-    public static void updateAiming(
-            int range,
-            int turnMs,
             double fov,
             boolean head,
             boolean fire,
@@ -109,14 +86,12 @@ public class Config {
     ) {
         double safeHeadshotRate = clampPercentage(configuredHeadshotRate);
         AIMBOT_RANGE.set(range);
-        AIM_TURN_MS.set(turnMs);
         AIMBOT_FOV.set(fov);
         AIM_AT_HEAD.set(head);
         AUTO_FIRE.set(fire);
         HEADSHOT_RATE.set(safeHeadshotRate);
         SHOW_FOV_CIRCLE.set(showCircle);
         aimbotRange = range;
-        aimTurnMs = turnMs;
         aimbotFov = fov;
         aimAtHead = head;
         autoFire = fire;

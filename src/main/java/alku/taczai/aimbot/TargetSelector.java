@@ -10,6 +10,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -35,7 +36,7 @@ public class TargetSelector {
                         && e.isAlive()
                         && e.distanceToSqr(player) <= range * range
                         && !(e instanceof Player candidate && TeammateManager.isEffectiveTeammate(player, candidate))
-                        && isBoxWithinFov(eyePos, lookVec, e.getBoundingBox(), Config.aimbotFov)
+                        && isTargetWithinFov(eyePos, lookVec, e, Config.aimbotFov)
                         && hasLineOfSight(player, e)
         );
 
@@ -43,7 +44,7 @@ public class TargetSelector {
 
         LivingEntity best = entities.stream()
                 .min(Comparator
-                        .comparingDouble((LivingEntity e) -> aimScore(eyePos, lookVec, e.getBoundingBox()))
+                        .comparingDouble((LivingEntity e) -> aimScore(eyePos, lookVec, e))
                         .thenComparingDouble(e -> e.distanceToSqr(player)))
                 .orElse(null);
 
@@ -62,6 +63,16 @@ public class TargetSelector {
 
         Vec3 toTarget = targetCenter.subtract(eyePos).normalize();
         return 1.0 - direction.dot(toTarget);
+    }
+
+    static double aimScore(Vec3 eyePos, Vec3 lookVec, LivingEntity target) {
+        double score = aimScore(eyePos, lookVec, target.getBoundingBox());
+        Vec3 direction = lookVec.normalize();
+        for (Vec3 point : peekHeadPoints(target)) {
+            Vec3 toPoint = point.subtract(eyePos).normalize();
+            score = Math.min(score, 1.0 - direction.dot(toPoint));
+        }
+        return score;
     }
 
     static boolean isWithinFov(Vec3 lookDirection, Vec3 targetDirection, double maxDegrees) {
@@ -84,6 +95,14 @@ public class TargetSelector {
         }
 
         return visibilityPoints(targetBox).stream()
+                .anyMatch(point -> isWithinFov(lookDirection, point.subtract(eyePos), maxDegrees));
+    }
+
+    static boolean isTargetWithinFov(Vec3 eyePos, Vec3 lookDirection, LivingEntity target, double maxDegrees) {
+        if (isBoxWithinFov(eyePos, lookDirection, target.getBoundingBox(), maxDegrees)) {
+            return true;
+        }
+        return peekHeadPoints(target).stream()
                 .anyMatch(point -> isWithinFov(lookDirection, point.subtract(eyePos), maxDegrees));
     }
 
@@ -144,13 +163,20 @@ public class TargetSelector {
     }
 
     public static boolean hasLineOfSight(Player player, LivingEntity target) {
-        for (Vec3 to : visibilityPoints(target.getBoundingBox())) {
+        for (Vec3 to : visibilityPoints(target)) {
             if (isPointVisible(player, to)) return true;
         }
         return false;
     }
 
     static Vec3 visibleAimPoint(Player player, LivingEntity target, boolean preferHead) {
+        List<Vec3> peekHeadPoints = peekHeadPoints(target);
+        if (preferHead) {
+            for (Vec3 point : peekHeadPoints) {
+                if (isPointVisible(player, point)) return point;
+            }
+        }
+
         List<Vec3> points = visibilityPoints(target.getBoundingBox());
         int[] order = preferHead
                 ? new int[]{0, 1, 2, 3, 4, 5, 6}
@@ -159,7 +185,10 @@ public class TargetSelector {
             Vec3 point = points.get(index);
             if (isPointVisible(player, point)) return point;
         }
-        return preferHead ? points.get(0) : points.get(1);
+        for (Vec3 point : peekHeadPoints) {
+            if (isPointVisible(player, point)) return point;
+        }
+        return preferHead && !peekHeadPoints.isEmpty() ? peekHeadPoints.get(0) : points.get(preferHead ? 0 : 1);
     }
 
     static boolean isPointVisible(Player player, Vec3 to) {
@@ -176,6 +205,22 @@ public class TargetSelector {
     public static Player raytracePlayer(Player player) {
         LivingEntity target = raytraceEntity(player, false);
         return target instanceof Player candidate ? candidate : null;
+    }
+
+    static List<Vec3> visibilityPoints(LivingEntity target) {
+        List<Vec3> peekPoints = peekHeadPoints(target);
+        if (peekPoints.isEmpty()) {
+            return visibilityPoints(target.getBoundingBox());
+        }
+
+        List<Vec3> points = new ArrayList<>(peekPoints.size() + 7);
+        points.addAll(peekPoints);
+        points.addAll(visibilityPoints(target.getBoundingBox()));
+        return List.copyOf(points);
+    }
+
+    private static List<Vec3> peekHeadPoints(LivingEntity target) {
+        return target instanceof Player player ? PeekTargetCompat.headAimPoints(player) : List.of();
     }
 
     static List<Vec3> visibilityPoints(AABB box) {
