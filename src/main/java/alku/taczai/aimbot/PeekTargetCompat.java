@@ -1,6 +1,7 @@
 package alku.taczai.aimbot;
 
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 import java.lang.reflect.Method;
@@ -40,7 +41,7 @@ final class PeekTargetCompat {
 
             Object hitboxes = compat.buildHitboxes.invoke(null, player, angle, offset);
             Object upperBody = compat.upperBody.invoke(hitboxes);
-            return sampleOrientedBox(
+            List<Vec3> samples = sampleOrientedBox(
                     (Vec3) compat.center.invoke(upperBody),
                     (Vec3) compat.axisRight.invoke(upperBody),
                     ((Number) compat.halfRight.invoke(upperBody)).doubleValue(),
@@ -49,9 +50,23 @@ final class PeekTargetCompat {
                     (Vec3) compat.axisForward.invoke(upperBody),
                     ((Number) compat.halfForward.invoke(upperBody)).doubleValue()
             );
+            return constrainAimPointsToPose(samples, player.getBoundingBox());
         } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
             return List.of();
         }
+    }
+
+    static List<Vec3> constrainAimPointsToPose(List<Vec3> points, AABB poseBox) {
+        if (points.isEmpty() || poseBox == null || poseBox.getYsize() <= 0.0) {
+            return List.of();
+        }
+
+        double inset = Math.min(1.0e-4, poseBox.getYsize() * 0.1);
+        double minY = poseBox.minY + inset;
+        double maxY = poseBox.maxY - inset;
+        return points.stream()
+                .map(point -> new Vec3(point.x, Math.max(minY, Math.min(maxY, point.y)), point.z))
+                .toList();
     }
 
     static List<Vec3> sampleOrientedBox(

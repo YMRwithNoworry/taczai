@@ -8,6 +8,8 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 
 public class RotationHelper {
+    private static final double CLOSE_AIM_DISTANCE = 6.0;
+
     public static float[] getTargetRotation(Player player, LivingEntity target) {
         AimDecision decision = AimDecision.sample(Config.aimAtHead, Config.headshotRate);
         return getTargetRotation(player, target, decision);
@@ -15,6 +17,15 @@ public class RotationHelper {
 
     static float[] getTargetRotation(Player player, LivingEntity target, AimDecision decision) {
         Vec3 spawn = BallisticsSolver.spawnPosition(player);
+        BallisticsSolver.Parameters parameters = TaczBallistics.getParameters(player);
+        if (shouldUseDirectCloseAim(spawn, target.getBoundingBox(), parameters.speedPerTick())) {
+            // At point-blank ranges prioritize the large, visible body area.
+            // Bullet travel, gravity and latency compensation are all smaller
+            // than the collision/pose uncertainty that dominates this distance.
+            Vec3 closeAimPoint = TargetSelector.visibleAimPoint(player, target, false);
+            return directionToRotation(player, closeAimPoint.subtract(spawn));
+        }
+
         Vec3 targetVelocity = BallisticsSolver.targetVelocity(target);
         Vec3 baseAimPoint = TargetSelector.visibleAimPoint(player, target, decision.headshot());
         Vec3 aimPoint = baseAimPoint.add(TaczBallistics.getTargetHitboxCenterOffset(target, targetVelocity));
@@ -24,7 +35,6 @@ public class RotationHelper {
             aimPoint = baseAimPoint;
         }
 
-        BallisticsSolver.Parameters parameters = TaczBallistics.getParameters(player);
         BallisticsSolver.AimSolution solution = BallisticsSolver.solve(
                 spawn, aimPoint, targetVelocity, parameters
         );
@@ -33,6 +43,11 @@ public class RotationHelper {
                 ? solution.direction()
                 : aimPoint.subtract(spawn);
         return directionToRotation(player, direction);
+    }
+
+    static boolean shouldUseDirectCloseAim(Vec3 spawn, AABB targetBox, double speedPerTick) {
+        double directAimRange = Math.min(CLOSE_AIM_DISTANCE, Math.max(0.0, speedPerTick));
+        return targetBox.getCenter().distanceTo(spawn) <= directAimRange;
     }
 
     static float[] directionToRotation(Player player, Vec3 direction) {
