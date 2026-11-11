@@ -4,6 +4,7 @@ import alku.taczai.Config;
 import alku.taczai.teammate.TeammateManager;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.AABB;
@@ -170,15 +171,16 @@ public class TargetSelector {
     }
 
     static Vec3 visibleAimPoint(Player player, LivingEntity target, boolean preferHead) {
-        List<Vec3> peekHeadPoints = peekHeadPoints(target);
-        if (preferHead) {
+        boolean headAim = shouldAimAtHead(target.getPose(), target.getBoundingBox().getYsize(), preferHead);
+        List<Vec3> peekHeadPoints = headAim ? peekHeadPoints(target) : List.of();
+        if (headAim) {
             for (Vec3 point : peekHeadPoints) {
                 if (isPointVisible(player, point)) return point;
             }
         }
 
         List<Vec3> points = visibilityPoints(target.getBoundingBox());
-        int[] order = preferHead
+        int[] order = headAim
                 ? new int[]{0, 1, 2, 3, 4, 5, 6}
                 : new int[]{1, 0, 2, 3, 4, 5, 6};
         for (int index : order) {
@@ -188,7 +190,7 @@ public class TargetSelector {
         for (Vec3 point : peekHeadPoints) {
             if (isPointVisible(player, point)) return point;
         }
-        return preferHead && !peekHeadPoints.isEmpty() ? peekHeadPoints.get(0) : points.get(preferHead ? 0 : 1);
+        return headAim && !peekHeadPoints.isEmpty() ? peekHeadPoints.get(0) : points.get(headAim ? 0 : 1);
     }
 
     static boolean isPointVisible(Player player, Vec3 to) {
@@ -219,8 +221,21 @@ public class TargetSelector {
         return List.copyOf(points);
     }
 
+    static boolean shouldAimAtHead(Pose pose, double poseHeight, boolean preferHead) {
+        return preferHead && !isLowProfilePose(pose, poseHeight);
+    }
+
+    /** Swimming/prone targets need world-space body aims, not GD656's upright upper-body box. */
+    static boolean isLowProfilePose(Pose pose, double poseHeight) {
+        return pose == Pose.SWIMMING || poseHeight < 1.7;
+    }
+
     private static List<Vec3> peekHeadPoints(LivingEntity target) {
-        return target instanceof Player player ? PeekTargetCompat.headAimPoints(player) : List.of();
+        if (!(target instanceof Player player)
+                || isLowProfilePose(player.getPose(), player.getBoundingBox().getYsize())) {
+            return List.of();
+        }
+        return PeekTargetCompat.headAimPoints(player);
     }
 
     static List<Vec3> visibilityPoints(AABB box) {

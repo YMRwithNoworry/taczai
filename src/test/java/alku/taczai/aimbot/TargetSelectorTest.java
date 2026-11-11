@@ -1,5 +1,6 @@
 package alku.taczai.aimbot;
 
+import net.minecraft.world.entity.Pose;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
@@ -35,6 +36,21 @@ class TargetSelectorTest {
         var points = TargetSelector.visibilityPoints(standingTarget);
 
         assertTrue(points.get(0).y >= standingTarget.minY + standingTarget.getYsize() * 0.9 - 1.0e-4);
+    }
+
+    @Test
+    void proneAndSwimmingTargetsUseOnlyPoseHeightHeadPoints() {
+        assertTrue(TargetSelector.isLowProfilePose(Pose.SWIMMING, 1.8));
+        assertTrue(TargetSelector.isLowProfilePose(Pose.CROUCHING, 1.5));
+        assertTrue(TargetSelector.isLowProfilePose(Pose.STANDING, 0.6));
+        assertFalse(TargetSelector.isLowProfilePose(Pose.STANDING, 1.8));
+        assertFalse(TargetSelector.shouldAimAtHead(Pose.SWIMMING, 0.6, true));
+        assertFalse(TargetSelector.shouldAimAtHead(Pose.CROUCHING, 1.5, true));
+        assertFalse(TargetSelector.shouldAimAtHead(Pose.STANDING, 0.6, true));
+        assertTrue(TargetSelector.shouldAimAtHead(Pose.STANDING, 1.8, true));
+
+        AABB proneTarget = new AABB(-0.3, 0.0, 2.0, 0.3, 0.6, 2.6);
+        assertTrue(TargetSelector.visibilityPoints(proneTarget).get(0).y <= proneTarget.maxY);
     }
 
     @Test
