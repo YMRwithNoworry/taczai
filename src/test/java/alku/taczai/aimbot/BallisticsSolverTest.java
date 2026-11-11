@@ -3,10 +3,25 @@ package alku.taczai.aimbot;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class BallisticsSolverTest {
+    @Test
+    void spawnPositionMatchesTaczBulletOrigin() {
+        assertEquals(new Vec3(4.0, 1.5, -2.0), BallisticsSolver.spawnPosition(4.0, 1.6, -2.0));
+    }
+
+    @Test
+    void taczHitboxOffsetUsesItsActualCenterTranslation() {
+        assertEquals(-2.0, TaczBallistics.getTargetHitboxCenterShift(true, false, false, 3.0), 1.0e-8);
+        assertEquals(-5.0, TaczBallistics.getTargetHitboxCenterShift(false, false, false, 3.0), 1.0e-8);
+        assertEquals(-3.0, TaczBallistics.getTargetHitboxCenterShift(true, true, false, 3.0), 1.0e-8);
+        assertEquals(-7.5, TaczBallistics.getTargetHitboxCenterShift(false, true, false, 3.0), 1.0e-8);
+        assertEquals(-4.5, TaczBallistics.getTargetHitboxCenterShift(true, false, true, 3.0), 1.0e-8);
+    }
+
     @Test
     void sniperAimCompensatesForTaczGravityAndFriction() {
         BallisticsSolver.Parameters parameters = new BallisticsSolver.Parameters(

@@ -92,17 +92,10 @@ final class TaczBallistics {
     }
 
     /**
-     * TACZ does not test bullets against the plain entity box. Its server-side
-     * hitbox is expanded in the direction of movement and then moved backwards
-     * to compensate for latency. Aiming at the middle of the plain box misses
-     * moving targets, so this returns the center offset of the hitbox TACZ
-     * actually uses.
+     * TACZ first adjusts the hitbox size and then translates its center relative
+     * to the target's current position before collision checks.
      */
     static Vec3 getTargetHitboxCenterOffset(LivingEntity target, Vec3 velocity) {
-        if (velocity.lengthSqr() < 1.0e-8) {
-            return Vec3.ZERO;
-        }
-
         double hitboxOffset = 3.0;
         try {
             if (OtherConfig.SERVER_HITBOX_OFFSET != null) {
@@ -115,9 +108,24 @@ final class TaczBallistics {
             hitboxOffset = 3.0;
         }
 
-        double centerShift = target instanceof Player
-                ? hitboxOffset - 4.5
-                : -4.5;
-        return velocity.scale(centerShift);
+        boolean playerTarget = target instanceof Player;
+        boolean mounted = target.getVehicle() != null;
+        boolean specialTarget = target instanceof com.tacz.guns.api.entity.ITargetEntity;
+        return velocity.scale(getTargetHitboxCenterShift(playerTarget, mounted, specialTarget, hitboxOffset));
+    }
+
+    static double getTargetHitboxCenterShift(
+            boolean playerTarget,
+            boolean mounted,
+            boolean specialTarget,
+            double configuredOffset
+    ) {
+        double centerShift = -5.0;
+        if (playerTarget) {
+            centerShift += configuredOffset;
+            if (mounted) centerShift += configuredOffset / 2.0;
+        }
+        if (mounted || specialTarget) centerShift -= 2.5;
+        return centerShift;
     }
 }

@@ -8,10 +8,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class EnemyOutlineHandlerTest {
     @Test
     void outlinesOnlyEnabledLivingRemoteEnemies() {
-        assertTrue(EnemyOutlineHandler.shouldOutline(true, false, false, true));
-        assertFalse(EnemyOutlineHandler.shouldOutline(false, false, false, true));
-        assertFalse(EnemyOutlineHandler.shouldOutline(true, true, false, true));
-        assertFalse(EnemyOutlineHandler.shouldOutline(true, false, true, true));
-        assertFalse(EnemyOutlineHandler.shouldOutline(true, false, false, false));
+        assertTrue(EnemyOutlineHandler.shouldOutline(false, false, true));
+        assertFalse(EnemyOutlineHandler.shouldOutline(true, false, true));
+        assertFalse(EnemyOutlineHandler.shouldOutline(false, true, true));
+        assertFalse(EnemyOutlineHandler.shouldOutline(false, false, false));
     }
 }

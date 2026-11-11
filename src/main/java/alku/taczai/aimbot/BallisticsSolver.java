@@ -47,13 +47,13 @@ final class BallisticsSolver {
         }
     }
 
-    /** Bullet spawn position used by TACZ: mid-tick body position plus eye height. */
+    /** Bullet spawn position used by TACZ: current player position and eye height minus 0.1 blocks. */
     static Vec3 spawnPosition(LivingEntity shooter) {
-        return new Vec3(
-                shooter.xo + (shooter.getX() - shooter.xo) * 0.5,
-                shooter.yo + (shooter.getY() - shooter.yo) * 0.5 + shooter.getEyeHeight(),
-                shooter.zo + (shooter.getZ() - shooter.zo) * 0.5
-        );
+        return spawnPosition(shooter.getX(), shooter.getEyeY(), shooter.getZ());
+    }
+
+    static Vec3 spawnPosition(double x, double eyeY, double z) {
+        return new Vec3(x, eyeY - 0.1, z);
     }
 
     /**

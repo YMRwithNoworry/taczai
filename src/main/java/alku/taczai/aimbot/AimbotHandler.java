@@ -6,6 +6,10 @@ import alku.taczai.keybind.KeyMappings;
 import com.tacz.guns.api.client.gameplay.IClientPlayerGunOperator;
 import com.tacz.guns.api.entity.IGunOperator;
 import com.tacz.guns.api.entity.ShootResult;
+import com.tacz.guns.api.TimelessAPI;
+import com.tacz.guns.api.item.IGun;
+import com.tacz.guns.api.item.gun.FireMode;
+import com.tacz.guns.resource.index.CommonGunIndex;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
@@ -34,11 +38,8 @@ public class AimbotHandler {
     private boolean cameraAimActive = false;
     private float cameraAimYaw = 0.0F;
     private float cameraAimPitch = 0.0F;
-
-    /** Cached aim for frame-rate fire attempts; shot cooldown remains owned by TACZ. */
-    private boolean autoFirePending = false;
-    private float autoFireYaw = 0.0F;
-    private float autoFirePitch = 0.0F;
+    private boolean autoFireControllerHeld = false;
+    private long autoFireLastShootTimestamp = Long.MIN_VALUE;
 
     @SubscribeEvent
     public void onClientTick(TickEvent.ClientTickEvent event) {
@@ -46,12 +47,15 @@ public class AimbotHandler {
 
         Minecraft mc = Minecraft.getInstance();
         if (mc.player == null) {
+            TaczAutoFireCompat.setControllerShootDown(false);
+            autoFireControllerHeld = false;
             clearAimDecision();
             releaseCameraAim();
             forcedAim = false;
             return;
         }
         if (mc.level == null) {
+            releaseAutoFire(mc.player);
             lockedTarget = null;
             clearAimDecision();
             releaseCameraAim();
@@ -62,6 +66,7 @@ public class AimbotHandler {
         Player player = mc.player;
 
         if (!isHoldingTaczGun(player)) {
+            releaseAutoFire(mc.player);
             lockedTarget = null;
             clearAimDecision();
             releaseCameraAim();
@@ -70,6 +75,7 @@ public class AimbotHandler {
         }
 
         if (!KeyMappings.aimbotEnabled) {
+            releaseAutoFire(mc.player);
             lockedTarget = null;
             clearAimDecision();
             releaseCameraAim();
@@ -81,6 +87,7 @@ public class AimbotHandler {
             lockedTarget = TargetSelector.getActiveTarget(player);
         }
         if (lockedTarget == null) {
+            releaseAutoFire(mc.player);
             clearAimDecision();
             releaseCameraAim();
             updateForcedAim(mc.player, false);
@@ -93,30 +100,11 @@ public class AimbotHandler {
         float[] targetRot = RotationHelper.getTargetRotation(player, lockedTarget, decision);
         RotationHelper.applySnapRotation(player, targetRot[0], targetRot[1]);
         holdCameraOnAim(targetRot[0], targetRot[1]);
-        autoFirePending = Config.autoFire;
-        if (autoFirePending) {
-            autoFireYaw = targetRot[0];
-            autoFirePitch = targetRot[1];
+        if (Config.autoFire && mc.screen == null) {
+            handleAutoFire(mc.player, targetRot[0], targetRot[1]);
+        } else {
+            releaseAutoFire(mc.player);
         }
-    }
-
-    @SubscribeEvent
-    public void onRenderTick(TickEvent.RenderTickEvent event) {
-        if (event.phase != TickEvent.Phase.END || !autoFirePending || !Config.autoFire) return;
-
-        Minecraft mc = Minecraft.getInstance();
-        LocalPlayer player = mc.player;
-        if (player == null
-                || mc.level == null
-                || mc.screen != null
-                || !KeyMappings.aimbotEnabled
-                || !isHoldingTaczGun(player)
-                || !TargetSelector.isTrackableTarget(player, lockedTarget)) {
-            autoFirePending = false;
-            return;
-        }
-
-        handleAutoFire(player, autoFireYaw, autoFirePitch);
     }
 
     /** Renders the local view at the current aim while the target remains locked. */
@@ -139,7 +127,6 @@ public class AimbotHandler {
 
     private void releaseCameraAim() {
         cameraAimActive = false;
-        autoFirePending = false;
     }
 
     private AimDecision getAimDecision(LivingEntity target) {
@@ -158,22 +145,70 @@ public class AimbotHandler {
     }
 
     private void handleAutoFire(LocalPlayer localPlayer, float targetYaw, float targetPitch) {
+        RotationHelper.applySnapRotation(localPlayer, targetYaw, targetPitch);
+        syncAimToServer(localPlayer);
+
         IClientPlayerGunOperator operator = IClientPlayerGunOperator.fromLocalPlayer(localPlayer);
         if (operator == null) return;
+
+        long shootTimestamp = operator.getDataHolder().clientShootTimestamp;
+        if (autoFireControllerHeld
+                && TaczAutoFireCompat.shouldReleaseAfterRecordedShot(
+                        isContinuousFireMode(localPlayer),
+                        autoFireLastShootTimestamp,
+                        shootTimestamp
+                )) {
+            TaczAutoFireCompat.setControllerShootDown(false);
+            autoFireControllerHeld = false;
+            autoFireLastShootTimestamp = Long.MIN_VALUE;
+            clearAimDecision();
+            return;
+        }
+
+        if (!autoFireControllerHeld) {
+            autoFireLastShootTimestamp = shootTimestamp;
+        }
+        if (TaczAutoFireCompat.setControllerShootDown(true)) {
+            autoFireControllerHeld = true;
+            return;
+        }
 
         IGunOperator gunOperator = IGunOperator.fromLivingEntity(localPlayer);
         boolean reloading = gunOperator.getSynReloadState().getStateType().isReloading();
         long shootCooldown = operator.getClientShootCoolDown();
         if (!shouldAutoFire(reloading, shootCooldown)) return;
 
-        RotationHelper.applySnapRotation(localPlayer, targetYaw, targetPitch);
-        syncAimToServer(localPlayer);
-
         ShootResult result = operator.shoot();
         if (result == ShootResult.SUCCESS) {
-            autoFirePending = false;
             clearAimDecision();
         }
+    }
+
+    private boolean isContinuousFireMode(LocalPlayer player) {
+        ItemStack gunStack = player.getMainHandItem();
+        IGun gun = IGun.getIGunOrNull(gunStack);
+        if (gun == null) return false;
+
+        FireMode fireMode = gun.getFireMode(gunStack);
+        if (fireMode == FireMode.AUTO) return true;
+        if (fireMode != FireMode.BURST) return false;
+
+        try {
+            CommonGunIndex index = TimelessAPI.getCommonGunIndex(gun.getGunId(gunStack)).orElse(null);
+            return index != null
+                    && index.getGunData().getBurstData() != null
+                    && index.getGunData().getBurstData().isContinuousShoot();
+        } catch (RuntimeException | LinkageError ignored) {
+            return false;
+        }
+    }
+
+    private void releaseAutoFire(LocalPlayer player) {
+        if (autoFireControllerHeld) {
+            TaczAutoFireCompat.setControllerShootDown(false);
+        }
+        autoFireControllerHeld = false;
+        autoFireLastShootTimestamp = Long.MIN_VALUE;
     }
 
     private void syncAimToServer(LocalPlayer player) {

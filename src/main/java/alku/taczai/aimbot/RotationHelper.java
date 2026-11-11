@@ -16,14 +16,11 @@ public class RotationHelper {
     static float[] getTargetRotation(Player player, LivingEntity target, AimDecision decision) {
         Vec3 spawn = BallisticsSolver.spawnPosition(player);
         Vec3 targetVelocity = BallisticsSolver.targetVelocity(target);
-        Vec3 hitboxOffset = TaczBallistics.getTargetHitboxCenterOffset(target, targetVelocity);
         Vec3 baseAimPoint = TargetSelector.visibleAimPoint(player, target, decision.headshot());
-        Vec3 shiftedAimPoint = baseAimPoint.add(hitboxOffset);
-        Vec3 aimPoint = shiftedAimPoint;
-        if (hitboxOffset.lengthSqr() > 1.0e-8
-                && !TargetSelector.isPointVisible(player, shiftedAimPoint)) {
-            // Moving behind hard cover: the latency-compensated hitbox is not
-            // reachable, so keep the visible point instead of shooting a wall.
+        Vec3 aimPoint = baseAimPoint.add(TaczBallistics.getTargetHitboxCenterOffset(target, targetVelocity));
+        if (!aimPoint.equals(baseAimPoint) && !TargetSelector.isPointVisible(player, aimPoint)) {
+            // If the historical server hitbox would be behind hard cover, keep
+            // the visible point rather than turning the shot into a wall hit.
             aimPoint = baseAimPoint;
         }
 
