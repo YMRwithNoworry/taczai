@@ -1,5 +1,6 @@
 package alku.taczai.aimbot;
 
+import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
@@ -25,7 +26,38 @@ class PeekTargetCompatTest {
 
         assertEquals(15, points.size());
         assertEquals(center, points.get(0));
-        assertTrue(points.stream().allMatch(point -> inside(point, center, right, halfRight, up, halfUp, forward, halfForward)));
+        assertTrue(points.stream().allMatch(point ->
+                inside(point, center, right, halfRight, up, halfUp, forward, halfForward)));
+    }
+
+    @Test
+    void boxCornersMatchTheSuppliedHitbox() {
+        AABB box = new AABB(-1.0, 2.0, 3.0, 4.0, 5.0, 6.0);
+
+        List<Vec3> corners = PeekTargetCompat.boxCorners(box);
+
+        assertEquals(8, corners.size());
+        assertTrue(corners.stream().allMatch(point ->
+                (point.x == box.minX || point.x == box.maxX)
+                        && (point.y == box.minY || point.y == box.maxY)
+                        && (point.z == box.minZ || point.z == box.maxZ)));
+    }
+
+    @Test
+    void orientedBoxCornersStayOnRotatedBoxSurface() {
+        Vec3 center = new Vec3(4.0, 2.0, -3.0);
+        Vec3 right = new Vec3(0.6, 0.0, 0.8);
+        Vec3 up = new Vec3(0.0, 1.0, 0.0);
+        Vec3 forward = new Vec3(-0.8, 0.0, 0.6);
+
+        List<Vec3> corners = PeekTargetCompat.orientedBoxCorners(
+                center, right, 0.3, up, 0.55, forward, 0.2
+        );
+
+        assertEquals(8, corners.size());
+        assertTrue(corners.stream().allMatch(point -> inside(
+                point, center, right, 0.3, up, 0.55, forward, 0.2
+        )));
     }
 
     @Test

@@ -19,41 +19,109 @@ final class PeekTargetCompat {
     }
 
     static List<Vec3> headAimPoints(Player player) {
-        if (player == null) {
+        PeekHitboxes hitboxes = getActiveHitboxes(player);
+        if (hitboxes == null) {
             return List.of();
+        }
+        return constrainAimPointsToPose(hitboxes.aimPoints(), player.getBoundingBox());
+    }
+
+    static List<List<Vec3>> activeHitboxCorners(Player player) {
+        PeekHitboxes hitboxes = getActiveHitboxes(player);
+        if (hitboxes == null) {
+            return List.of();
+        }
+        return List.of(hitboxes.lowerBodyCorners(), hitboxes.upperBodyCorners());
+    }
+
+    private static PeekHitboxes getActiveHitboxes(Player player) {
+        if (player == null) {
+            return null;
         }
 
         Api compat = getApi();
         if (compat == null) {
-            return List.of();
+            return null;
         }
 
         try {
             if (!Boolean.TRUE.equals(compat.betterPeekEnabled.invoke(null))) {
-                return List.of();
+                return null;
             }
 
             float angle = ((Number) compat.renderAngle.invoke(null, player, CURRENT_STATE_PARTIAL_TICK)).floatValue();
             float offset = ((Number) compat.renderOffset.invoke(null, player, CURRENT_STATE_PARTIAL_TICK)).floatValue();
             if (!Boolean.TRUE.equals(compat.hasActiveHitboxes.invoke(null, angle, offset))) {
-                return List.of();
+                return null;
             }
 
             Object hitboxes = compat.buildHitboxes.invoke(null, player, angle, offset);
+            AABB lowerBody = (AABB) compat.lowerBody.invoke(hitboxes);
             Object upperBody = compat.upperBody.invoke(hitboxes);
-            List<Vec3> samples = sampleOrientedBox(
-                    (Vec3) compat.center.invoke(upperBody),
-                    (Vec3) compat.axisRight.invoke(upperBody),
-                    ((Number) compat.halfRight.invoke(upperBody)).doubleValue(),
-                    (Vec3) compat.axisUp.invoke(upperBody),
-                    ((Number) compat.halfUp.invoke(upperBody)).doubleValue(),
-                    (Vec3) compat.axisForward.invoke(upperBody),
-                    ((Number) compat.halfForward.invoke(upperBody)).doubleValue()
+            Vec3 center = (Vec3) compat.center.invoke(upperBody);
+            Vec3 axisRight = (Vec3) compat.axisRight.invoke(upperBody);
+            double halfRight = ((Number) compat.halfRight.invoke(upperBody)).doubleValue();
+            Vec3 axisUp = (Vec3) compat.axisUp.invoke(upperBody);
+            double halfUp = ((Number) compat.halfUp.invoke(upperBody)).doubleValue();
+            Vec3 axisForward = (Vec3) compat.axisForward.invoke(upperBody);
+            double halfForward = ((Number) compat.halfForward.invoke(upperBody)).doubleValue();
+            return new PeekHitboxes(
+                    boxCorners(lowerBody),
+                    orientedBoxCorners(center, axisRight, halfRight, axisUp, halfUp, axisForward, halfForward),
+                    sampleOrientedBox(center, axisRight, halfRight, axisUp, halfUp, axisForward, halfForward)
             );
-            return constrainAimPointsToPose(samples, player.getBoundingBox());
         } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
+            return null;
+        }
+    }
+
+    static List<Vec3> boxCorners(AABB box) {
+        return List.of(
+                new Vec3(box.minX, box.minY, box.minZ),
+                new Vec3(box.maxX, box.minY, box.minZ),
+                new Vec3(box.maxX, box.maxY, box.minZ),
+                new Vec3(box.minX, box.maxY, box.minZ),
+                new Vec3(box.minX, box.minY, box.maxZ),
+                new Vec3(box.maxX, box.minY, box.maxZ),
+                new Vec3(box.maxX, box.maxY, box.maxZ),
+                new Vec3(box.minX, box.maxY, box.maxZ)
+        );
+    }
+
+    static List<Vec3> orientedBoxCorners(
+            Vec3 center,
+            Vec3 axisRight,
+            double halfRight,
+            Vec3 axisUp,
+            double halfUp,
+            Vec3 axisForward,
+            double halfForward
+    ) {
+        if (center == null || axisRight == null || axisUp == null || axisForward == null
+                || !validHalfExtent(halfRight) || !validHalfExtent(halfUp) || !validHalfExtent(halfForward)) {
             return List.of();
         }
+
+        Vec3 right = axisRight.normalize().scale(halfRight);
+        Vec3 up = axisUp.normalize().scale(halfUp);
+        Vec3 forward = axisForward.normalize().scale(halfForward);
+        if (right.lengthSqr() < 1.0e-8 || up.lengthSqr() < 1.0e-8 || forward.lengthSqr() < 1.0e-8) {
+            return List.of();
+        }
+
+        return List.of(
+                center.subtract(right).subtract(up).subtract(forward),
+                center.add(right).subtract(up).subtract(forward),
+                center.add(right).add(up).subtract(forward),
+                center.subtract(right).add(up).subtract(forward),
+                center.subtract(right).subtract(up).add(forward),
+                center.add(right).subtract(up).add(forward),
+                center.add(right).add(up).add(forward),
+                center.subtract(right).add(up).add(forward)
+        );
+    }
+
+    private record PeekHitboxes(List<Vec3> lowerBodyCorners, List<Vec3> upperBodyCorners, List<Vec3> aimPoints) {
     }
 
     static List<Vec3> constrainAimPointsToPose(List<Vec3> points, AABB poseBox) {
@@ -138,6 +206,7 @@ final class PeekTargetCompat {
                     peekHandler.getMethod("getRenderOffsetForPlayer", Player.class, float.class),
                     geometry.getMethod("hasActiveHitboxes", float.class, float.class),
                     geometry.getMethod("build", Player.class, float.class, float.class),
+                    hitboxSet.getMethod("lowerBody"),
                     hitboxSet.getMethod("upperBody"),
                     orientedBox.getMethod("center"),
                     orientedBox.getMethod("axisRight"),
@@ -159,6 +228,7 @@ final class PeekTargetCompat {
             Method renderOffset,
             Method hasActiveHitboxes,
             Method buildHitboxes,
+            Method lowerBody,
             Method upperBody,
             Method center,
             Method axisRight,

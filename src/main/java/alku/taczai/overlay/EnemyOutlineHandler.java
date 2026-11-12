@@ -1,5 +1,6 @@
 package alku.taczai.overlay;
 
+import alku.taczai.aimbot.TaczHitboxCompat;
 import alku.taczai.teammate.TeammateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
@@ -9,12 +10,14 @@ import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GameRenderer;
-import net.minecraft.client.renderer.LevelRenderer;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+
+import java.util.List;
 
 public class EnemyOutlineHandler {
     private static final float RED = 1.0F;
@@ -30,40 +33,71 @@ public class EnemyOutlineHandler {
         if (localPlayer == null || minecraft.level == null) return;
 
         Vec3 camera = event.getCamera().getPosition();
-        BufferBuilder builder = Tesselator.getInstance().getBuilder();
-        boolean builderStarted = false;
+        double renderRange = minecraft.options.renderDistance().get() * 16.0;
+        AABB renderArea = localPlayer.getBoundingBox().inflate(renderRange);
+        List<Entity> enemies = minecraft.level.getEntitiesOfClass(
+                Entity.class,
+                renderArea,
+                entity -> isEnemyTarget(localPlayer, entity)
+        );
+        if (enemies.isEmpty()) return;
 
+        BufferBuilder builder = Tesselator.getInstance().getBuilder();
         RenderSystem.disableDepthTest();
         try {
-            for (Player player : minecraft.level.players()) {
-                if (player == localPlayer || !player.isAlive()) continue;
-                boolean teammate = TeammateManager.isEffectiveTeammate(localPlayer, player);
-                if (!shouldOutline(false, teammate, player.isAlive())) continue;
-
-                if (!builderStarted) {
-                    RenderSystem.setShader(GameRenderer::getPositionColorShader);
-                    builder.begin(VertexFormat.Mode.LINES, DefaultVertexFormat.POSITION_COLOR);
-                    builderStarted = true;
+            RenderSystem.setShader(GameRenderer::getPositionColorShader);
+            builder.begin(VertexFormat.Mode.LINES, DefaultVertexFormat.POSITION_COLOR);
+            for (Entity enemy : enemies) {
+                for (List<Vec3> corners : TaczHitboxCompat.getHitboxCorners(enemy, localPlayer)) {
+                    renderBoxEdges(event, builder, corners, camera);
                 }
-                AABB box = player.getBoundingBox().inflate(0.03).move(-camera.x, -camera.y, -camera.z);
-                LevelRenderer.renderLineBox(
-                        event.getPoseStack(),
-                        builder,
-                        box,
-                        RED,
-                        GREEN,
-                        BLUE,
-                        1.0F
-                );
             }
-
-            if (builderStarted) BufferUploader.drawWithShader(builder.end());
+            BufferUploader.drawWithShader(builder.end());
         } finally {
             RenderSystem.enableDepthTest();
         }
     }
 
-    static boolean shouldOutline(boolean samePlayer, boolean teammate, boolean alive) {
-        return !samePlayer && !teammate && alive;
+    private static void renderBoxEdges(
+            RenderLevelStageEvent event,
+            BufferBuilder builder,
+            List<Vec3> corners,
+            Vec3 camera
+    ) {
+        if (corners.size() != 8) return;
+
+        var pose = event.getPoseStack().last();
+        for (int[] edge : TaczHitboxCompat.boxEdges()) {
+            Vec3 from = corners.get(edge[0]).subtract(camera);
+            Vec3 to = corners.get(edge[1]).subtract(camera);
+            builder.vertex(pose.pose(), (float) from.x, (float) from.y, (float) from.z)
+                    .color(RED, GREEN, BLUE, 1.0F)
+                    .endVertex();
+            builder.vertex(pose.pose(), (float) to.x, (float) to.y, (float) to.z)
+                    .color(RED, GREEN, BLUE, 1.0F)
+                    .endVertex();
+        }
+    }
+
+    static boolean isEnemyTarget(Player localPlayer, Entity entity) {
+        if (localPlayer == null || entity == null) return false;
+        boolean teammate = entity instanceof Player player && TeammateManager.isEffectiveTeammate(localPlayer, player);
+        return shouldRenderTargetable(
+                entity == localPlayer,
+                teammate,
+                entity.isAlive(),
+                entity.isPickable(),
+                entity.isSpectator()
+        );
+    }
+
+    static boolean shouldRenderTargetable(
+            boolean samePlayer,
+            boolean teammate,
+            boolean alive,
+            boolean pickable,
+            boolean spectator
+    ) {
+        return !samePlayer && !teammate && alive && pickable && !spectator;
     }
 }
