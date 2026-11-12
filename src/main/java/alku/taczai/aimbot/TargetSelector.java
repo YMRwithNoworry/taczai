@@ -147,7 +147,7 @@ public class TargetSelector {
             if (living == player) continue;
             if (excludeTeammates && living instanceof Player candidate && TeammateManager.isEffectiveTeammate(player, candidate)) continue;
 
-            AABB entityBox = TaczHitboxCompat.getHitboxBox(living, player);
+            AABB entityBox = TaczHitboxCompat.getCurrentAimHitboxBox(living);
             Optional<Vec3> hitOpt = entityBox.clip(eyePos, finalEndPos);
             if (hitOpt.isEmpty()) continue;
 
@@ -204,7 +204,7 @@ public class TargetSelector {
         }
         if (!preferred.isEmpty()) return preferred.get(0);
         if (!fallback.isEmpty()) return fallback.get(0);
-        return TaczHitboxCompat.getHitboxBox(target, player).getCenter();
+        return TaczHitboxCompat.getCurrentAimHitboxBox(target).getCenter();
     }
 
     static Vec3 interpolateAimPoint(Vec3 currentPoint, Vec3 targetVelocity, float partialTick) {
@@ -237,7 +237,7 @@ public class TargetSelector {
         if (!regions.allPoints().isEmpty()) {
             return regions.allPoints();
         }
-        return TaczHitboxCompat.sampleAabb(TaczHitboxCompat.getHitboxBox(target, shooter));
+        return TaczHitboxCompat.sampleAabb(TaczHitboxCompat.getCurrentAimHitboxBox(target));
     }
 
     public static void resetIfTarget(LivingEntity target) {

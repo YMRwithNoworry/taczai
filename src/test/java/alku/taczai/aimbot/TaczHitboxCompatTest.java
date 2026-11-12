@@ -85,6 +85,7 @@ class TaczHitboxCompatTest {
         assertEquals(box.minY - 0.1, rendered.minY, 1.0e-9);
         assertEquals(box.maxY + 0.0625, rendered.maxY, 1.0e-9);
         assertEquals(box.maxZ + 0.4, rendered.maxZ, 1.0e-9);
+        assertEquals(0.6, rendered.getCenter().x, 1.0e-9);
         assertEquals(box.maxY, crouched.maxY, 1.0e-9);
     }
 

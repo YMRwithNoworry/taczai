@@ -1,7 +1,6 @@
 package alku.taczai.aimbot;
 
 import com.tacz.guns.config.util.HeadShotAABBConfigRead;
-import com.tacz.guns.util.HitboxHelper;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
@@ -93,25 +92,22 @@ public final class TaczHitboxCompat {
             }
         }
 
-        AABB hitbox = getHitboxBox(target, shooter);
+        AABB hitbox = getCurrentAimHitboxBox(target);
         AABB headshotBox = getConfiguredHeadshotBox(target);
         return sampleAimRegions(hitbox, headshotBox, target.position(), target.getEyeY() - target.getY());
     }
 
-    static AABB getHitboxBox(Entity target, Entity shooter) {
+    static AABB getCurrentAimHitboxBox(Entity target) {
         if (target == null) {
             return new AABB(0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
         }
 
-        try {
-            AABB hitbox = HitboxHelper.getFixedBoundingBox(target, shooter);
-            if (hitbox != null && isValidBox(hitbox)) {
-                return hitbox;
-            }
-        } catch (RuntimeException | LinkageError ignored) {
-            // Fall back if TACZ's hitbox helper is unavailable during startup.
-        }
-        return target.getBoundingBox();
+        Vec3 velocity = target.position().subtract(new Vec3(target.xOld, target.yOld, target.zOld));
+        return currentHitboxShape(
+                target.getBoundingBox(),
+                velocity,
+                target instanceof Player player && !player.isCrouching()
+        );
     }
 
     static AimRegions sampleAimRegions(AABB hitbox, AABB localHeadshotBox, Vec3 targetPosition, double eyeHeight) {
