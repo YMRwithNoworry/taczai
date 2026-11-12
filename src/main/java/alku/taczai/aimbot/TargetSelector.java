@@ -183,23 +183,41 @@ public class TargetSelector {
     }
 
     static Vec3 visibleAimPoint(Player player, LivingEntity target, boolean preferHead) {
+        return visibleAimPoint(player, target, preferHead, 1.0F);
+    }
+
+    static Vec3 visibleAimPoint(Player player, LivingEntity target, boolean preferHead, float partialTick) {
+        Vec3 targetVelocity = BallisticsSolver.targetVelocity(target);
         TaczHitboxCompat.AimRegions regions = TaczHitboxCompat.getAimRegions(target, player);
-        List<Vec3> preferred = regions.preferredPoints(preferHead);
+        List<Vec3> preferred = regions.preferredPoints(preferHead).stream()
+                .map(point -> interpolateAimPoint(point, targetVelocity, partialTick))
+                .toList();
         for (Vec3 point : preferred) {
-            if (isPointVisible(player, point)) return point;
+            if (isPointVisible(player, point, partialTick)) return point;
         }
 
-        List<Vec3> fallback = regions.fallbackPoints(preferHead);
+        List<Vec3> fallback = regions.fallbackPoints(preferHead).stream()
+                .map(point -> interpolateAimPoint(point, targetVelocity, partialTick))
+                .toList();
         for (Vec3 point : fallback) {
-            if (isPointVisible(player, point)) return point;
+            if (isPointVisible(player, point, partialTick)) return point;
         }
         if (!preferred.isEmpty()) return preferred.get(0);
         if (!fallback.isEmpty()) return fallback.get(0);
         return TaczHitboxCompat.getHitboxBox(target, player).getCenter();
     }
 
+    static Vec3 interpolateAimPoint(Vec3 currentPoint, Vec3 targetVelocity, float partialTick) {
+        double partial = Math.max(0.0, Math.min(1.0, partialTick));
+        return currentPoint.add(targetVelocity.scale(partial - 1.0));
+    }
+
     static boolean isPointVisible(Player player, Vec3 to) {
-        Vec3 from = player.getEyePosition();
+        return isPointVisible(player, to, 1.0F);
+    }
+
+    static boolean isPointVisible(Player player, Vec3 to, float partialTick) {
+        Vec3 from = player.getEyePosition(partialTick);
         ClipContext context = new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player);
         HitResult result = player.level().clip(context);
         if (result.getType() != HitResult.Type.BLOCK) return true;

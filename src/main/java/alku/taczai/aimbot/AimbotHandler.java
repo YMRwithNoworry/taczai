@@ -107,17 +107,34 @@ public class AimbotHandler {
         }
     }
 
-    /** Renders the local view at the current aim while the target remains locked. */
+    /** Refreshes the locked aim for the interpolated target position every rendered frame. */
     @SubscribeEvent
     public void onComputeCameraAngles(ViewportEvent.ComputeCameraAngles event) {
-        if (!cameraAimActive) return;
+        if (!cameraAimActive || lockedTarget == null) return;
 
         Minecraft mc = Minecraft.getInstance();
-        if (!(event.getCamera().getEntity() instanceof LocalPlayer cameraPlayer) || cameraPlayer != mc.player) return;
+        if (mc.player == null || mc.level == null
+                || !(event.getCamera().getEntity() instanceof LocalPlayer cameraPlayer)
+                || cameraPlayer != mc.player
+                || !KeyMappings.aimbotEnabled
+                || !isHoldingTaczGun(mc.player)
+                || !lockedTarget.isAlive()
+                || lockedTarget.level() != mc.level
+                || lockedTarget.distanceToSqr(mc.player) > Config.aimbotRange * Config.aimbotRange) {
+            releaseCameraAim();
+            return;
+        }
 
+        AimDecision decision = getAimDecision(lockedTarget);
+        float[] targetRot = RotationHelper.getTargetRotation(
+                mc.player, lockedTarget, decision, (float) event.getPartialTick()
+        );
+        holdCameraOnAim(targetRot[0], targetRot[1]);
+        RotationHelper.applySnapRotation(mc.player, targetRot[0], targetRot[1]);
         event.setYaw(cameraAimYaw);
         event.setPitch(Mth.clamp(cameraAimPitch, -90.0F, 90.0F));
     }
+
 
     private void holdCameraOnAim(float targetYaw, float targetPitch) {
         cameraAimActive = true;

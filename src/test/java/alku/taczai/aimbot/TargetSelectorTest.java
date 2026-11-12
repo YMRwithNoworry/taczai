@@ -50,6 +50,21 @@ class TargetSelectorTest {
     }
 
     @Test
+    void renderAimPointUsesInterpolatedPositionWithinTheCurrentTick() {
+        Vec3 currentAimPoint = new Vec3(10.0, 1.5, 4.0);
+        Vec3 targetVelocity = new Vec3(0.2, 0.0, -0.4);
+
+        assertEquals(
+                new Vec3(9.9, 1.5, 4.2),
+                TargetSelector.interpolateAimPoint(currentAimPoint, targetVelocity, 0.5F)
+        );
+        assertEquals(
+                currentAimPoint,
+                TargetSelector.interpolateAimPoint(currentAimPoint, targetVelocity, 1.0F)
+        );
+    }
+
+    @Test
     void fovUsesMaximumAngularOffsetFromCrosshair() {
         Vec3 look = new Vec3(0.0, 0.0, 1.0);
         assertTrue(TargetSelector.isWithinFov(look, directionAtDegrees(0.0), 20.0));

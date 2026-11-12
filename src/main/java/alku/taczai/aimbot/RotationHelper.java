@@ -16,20 +16,31 @@ public class RotationHelper {
     }
 
     static float[] getTargetRotation(Player player, LivingEntity target, AimDecision decision) {
-        Vec3 spawn = BallisticsSolver.spawnPosition(player);
+        return getTargetRotation(player, target, decision, 1.0F);
+    }
+
+    static float[] getTargetRotation(
+            Player player,
+            LivingEntity target,
+            AimDecision decision,
+            float partialTick
+    ) {
+        Vec3 eyePosition = player.getEyePosition(partialTick);
+        Vec3 spawn = eyePosition.add(0.0, -0.1, 0.0);
         BallisticsSolver.Parameters parameters = TaczBallistics.getParameters(player);
         if (shouldUseDirectCloseAim(
                 spawn,
-                TaczHitboxCompat.getHitboxBox(target, player),
+                TaczHitboxCompat.getRenderHitboxBox(target, partialTick),
                 parameters.speedPerTick()
         )) {
-            // At point-blank ranges, avoid extrapolating beyond the visible TACZ aim region.
-            Vec3 closeAimPoint = TargetSelector.visibleAimPoint(player, target, decision.headshot());
+            Vec3 closeAimPoint = TargetSelector.visibleAimPoint(
+                    player, target, decision.headshot(), partialTick
+            );
             return directionToRotation(player, closeAimPoint.subtract(spawn));
         }
 
         Vec3 targetVelocity = BallisticsSolver.targetVelocity(target);
-        Vec3 aimPoint = TargetSelector.visibleAimPoint(player, target, decision.headshot());
+        Vec3 aimPoint = TargetSelector.visibleAimPoint(player, target, decision.headshot(), partialTick);
 
         BallisticsSolver.AimSolution solution = BallisticsSolver.solve(
                 spawn, aimPoint, targetVelocity, parameters
