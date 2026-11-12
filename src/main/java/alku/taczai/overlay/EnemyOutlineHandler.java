@@ -3,13 +3,11 @@ package alku.taczai.overlay;
 import alku.taczai.aimbot.TaczHitboxCompat;
 import alku.taczai.teammate.TeammateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
-import com.mojang.blaze3d.vertex.BufferBuilder;
-import com.mojang.blaze3d.vertex.BufferUploader;
-import com.mojang.blaze3d.vertex.DefaultVertexFormat;
-import com.mojang.blaze3d.vertex.Tesselator;
-import com.mojang.blaze3d.vertex.VertexFormat;
+import com.mojang.blaze3d.vertex.PoseStack;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.renderer.GameRenderer;
+import net.minecraft.client.renderer.MultiBufferSource;
+import net.minecraft.client.renderer.RenderType;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.phys.AABB;
@@ -32,6 +30,7 @@ public class EnemyOutlineHandler {
         Player localPlayer = minecraft.player;
         if (localPlayer == null || minecraft.level == null) return;
 
+        PoseStack poseStack = event.getPoseStack();
         Vec3 camera = event.getCamera().getPosition();
         double renderRange = minecraft.options.renderDistance().get() * 16.0;
         AABB renderArea = localPlayer.getBoundingBox().inflate(renderRange);
@@ -42,41 +41,44 @@ public class EnemyOutlineHandler {
         );
         if (enemies.isEmpty()) return;
 
-        BufferBuilder builder = Tesselator.getInstance().getBuilder();
+        MultiBufferSource.BufferSource buffers = minecraft.renderBuffers().bufferSource();
+        VertexConsumer consumer = buffers.getBuffer(RenderType.lines());
         RenderSystem.disableDepthTest();
         try {
-            RenderSystem.setShader(GameRenderer::getPositionColorShader);
-            builder.begin(VertexFormat.Mode.LINES, DefaultVertexFormat.POSITION_COLOR);
             for (Entity enemy : enemies) {
                 for (List<Vec3> corners : TaczHitboxCompat.getHitboxCorners(enemy, localPlayer)) {
-                    renderBoxEdges(event, builder, corners, camera);
+                    renderBoxEdges(poseStack, consumer, corners, camera);
                 }
             }
-            BufferUploader.drawWithShader(builder.end());
+            buffers.endBatch(RenderType.lines());
         } finally {
             RenderSystem.enableDepthTest();
         }
     }
 
     private static void renderBoxEdges(
-            RenderLevelStageEvent event,
-            BufferBuilder builder,
+            PoseStack poseStack,
+            VertexConsumer consumer,
             List<Vec3> corners,
             Vec3 camera
     ) {
         if (corners.size() != 8) return;
 
-        var pose = event.getPoseStack().last();
+        PoseStack.Pose pose = poseStack.last();
         for (int[] edge : TaczHitboxCompat.boxEdges()) {
             Vec3 from = corners.get(edge[0]).subtract(camera);
             Vec3 to = corners.get(edge[1]).subtract(camera);
-            builder.vertex(pose.pose(), (float) from.x, (float) from.y, (float) from.z)
-                    .color(RED, GREEN, BLUE, 1.0F)
-                    .endVertex();
-            builder.vertex(pose.pose(), (float) to.x, (float) to.y, (float) to.z)
-                    .color(RED, GREEN, BLUE, 1.0F)
-                    .endVertex();
+            Vec3 normal = to.subtract(from).normalize();
+            putVertex(consumer, pose, from, normal);
+            putVertex(consumer, pose, to, normal);
         }
+    }
+
+    private static void putVertex(VertexConsumer consumer, PoseStack.Pose pose, Vec3 point, Vec3 normal) {
+        consumer.vertex(pose.pose(), (float) point.x, (float) point.y, (float) point.z)
+                .color(RED, GREEN, BLUE, 1.0F)
+                .normal(pose.normal(), (float) normal.x, (float) normal.y, (float) normal.z)
+                .endVertex();
     }
 
     static boolean isEnemyTarget(Player localPlayer, Entity entity) {
