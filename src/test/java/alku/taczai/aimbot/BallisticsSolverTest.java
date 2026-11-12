@@ -14,15 +14,6 @@ class BallisticsSolverTest {
     }
 
     @Test
-    void taczHitboxOffsetUsesItsActualCenterTranslation() {
-        assertEquals(-2.0, TaczBallistics.getTargetHitboxCenterShift(true, false, false, 3.0), 1.0e-8);
-        assertEquals(-5.0, TaczBallistics.getTargetHitboxCenterShift(false, false, false, 3.0), 1.0e-8);
-        assertEquals(-3.0, TaczBallistics.getTargetHitboxCenterShift(true, true, false, 3.0), 1.0e-8);
-        assertEquals(-7.5, TaczBallistics.getTargetHitboxCenterShift(false, true, false, 3.0), 1.0e-8);
-        assertEquals(-4.5, TaczBallistics.getTargetHitboxCenterShift(true, false, true, 3.0), 1.0e-8);
-    }
-
-    @Test
     void sniperAimCompensatesForTaczGravityAndFriction() {
         BallisticsSolver.Parameters parameters = new BallisticsSolver.Parameters(
                 20.0, 0.15, 0.015, 20.0, true

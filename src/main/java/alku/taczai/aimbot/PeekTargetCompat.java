@@ -18,12 +18,12 @@ final class PeekTargetCompat {
     private PeekTargetCompat() {
     }
 
-    static List<Vec3> headAimPoints(Player player) {
+    static TaczHitboxCompat.AimRegions activeAimRegions(Player player) {
         PeekHitboxes hitboxes = getActiveHitboxes(player);
         if (hitboxes == null) {
-            return List.of();
+            return null;
         }
-        return constrainAimPointsToPose(hitboxes.aimPoints(), player.getBoundingBox());
+        return new TaczHitboxCompat.AimRegions(hitboxes.aimPoints(), hitboxes.bodyAimPoints());
     }
 
     static List<List<Vec3>> activeHitboxCorners(Player player) {
@@ -68,7 +68,8 @@ final class PeekTargetCompat {
             return new PeekHitboxes(
                     boxCorners(lowerBody),
                     orientedBoxCorners(center, axisRight, halfRight, axisUp, halfUp, axisForward, halfForward),
-                    sampleOrientedBox(center, axisRight, halfRight, axisUp, halfUp, axisForward, halfForward)
+                    sampleOrientedBox(center, axisRight, halfRight, axisUp, halfUp, axisForward, halfForward),
+                    TaczHitboxCompat.sampleAabb(lowerBody)
             );
         } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
             return null;
@@ -121,20 +122,12 @@ final class PeekTargetCompat {
         );
     }
 
-    private record PeekHitboxes(List<Vec3> lowerBodyCorners, List<Vec3> upperBodyCorners, List<Vec3> aimPoints) {
-    }
-
-    static List<Vec3> constrainAimPointsToPose(List<Vec3> points, AABB poseBox) {
-        if (points.isEmpty() || poseBox == null || poseBox.getYsize() <= 0.0) {
-            return List.of();
-        }
-
-        double inset = Math.min(1.0e-4, poseBox.getYsize() * 0.1);
-        double minY = poseBox.minY + inset;
-        double maxY = poseBox.maxY - inset;
-        return points.stream()
-                .map(point -> new Vec3(point.x, Math.max(minY, Math.min(maxY, point.y)), point.z))
-                .toList();
+    private record PeekHitboxes(
+            List<Vec3> lowerBodyCorners,
+            List<Vec3> upperBodyCorners,
+            List<Vec3> aimPoints,
+            List<Vec3> bodyAimPoints
+    ) {
     }
 
     static List<Vec3> sampleOrientedBox(

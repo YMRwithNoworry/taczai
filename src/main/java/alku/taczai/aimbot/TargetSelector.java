@@ -4,14 +4,12 @@ import alku.taczai.Config;
 import alku.taczai.teammate.TeammateManager;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
-import net.minecraft.world.entity.Pose;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
@@ -37,43 +35,53 @@ public class TargetSelector {
                         && e.isAlive()
                         && e.distanceToSqr(player) <= range * range
                         && !(e instanceof Player candidate && TeammateManager.isEffectiveTeammate(player, candidate))
-                        && isTargetWithinFov(eyePos, lookVec, e, Config.aimbotFov)
+                        && isTargetWithinFov(player, eyePos, lookVec, e, Config.aimbotFov)
                         && hasLineOfSight(player, e)
         );
 
         if (entities.isEmpty()) return null;
 
-        LivingEntity best = entities.stream()
+        return entities.stream()
                 .min(Comparator
-                        .comparingDouble((LivingEntity e) -> aimScore(eyePos, lookVec, e))
+                        .comparingDouble((LivingEntity e) -> aimScore(player, eyePos, lookVec, e))
                         .thenComparingDouble(e -> e.distanceToSqr(player)))
                 .orElse(null);
-
-        return best;
     }
 
     static double aimScore(Vec3 eyePos, Vec3 lookVec, AABB targetBox) {
         Vec3 direction = lookVec.normalize();
-        Vec3 targetCenter = targetBox.getCenter();
-        double rayLength = eyePos.distanceTo(targetCenter) + targetBox.getSize() + 1.0;
+        double rayLength = eyePos.distanceTo(targetBox.getCenter()) + targetBox.getSize() + 1.0;
 
         if (targetBox.contains(eyePos)
                 || targetBox.clip(eyePos, eyePos.add(direction.scale(rayLength))).isPresent()) {
             return 0.0;
         }
 
-        Vec3 toTarget = targetCenter.subtract(eyePos).normalize();
+        Vec3 toTarget = targetBox.getCenter().subtract(eyePos).normalize();
         return 1.0 - direction.dot(toTarget);
     }
 
-    static double aimScore(Vec3 eyePos, Vec3 lookVec, LivingEntity target) {
-        double score = aimScore(eyePos, lookVec, target.getBoundingBox());
-        Vec3 direction = lookVec.normalize();
-        for (Vec3 point : peekHeadPoints(target)) {
-            Vec3 toPoint = point.subtract(eyePos).normalize();
-            score = Math.min(score, 1.0 - direction.dot(toPoint));
+    static double aimScore(Player shooter, Vec3 eyePos, Vec3 lookVec, LivingEntity target) {
+        return aimScore(eyePos, lookVec, TaczHitboxCompat.getAimRegions(target, shooter).allPoints());
+    }
+
+    static double aimScore(Vec3 eyePos, Vec3 lookVec, List<Vec3> targetPoints) {
+        if (targetPoints.isEmpty()) {
+            return Double.POSITIVE_INFINITY;
         }
-        return score;
+        if (lookVec.lengthSqr() < 1.0e-12) {
+            return Double.POSITIVE_INFINITY;
+        }
+
+        Vec3 direction = lookVec.normalize();
+        return targetPoints.stream()
+                .mapToDouble(point -> {
+                    Vec3 toPoint = point.subtract(eyePos);
+                    if (toPoint.lengthSqr() < 1.0e-12) return 0.0;
+                    return 1.0 - direction.dot(toPoint.normalize());
+                })
+                .min()
+                .orElse(Double.POSITIVE_INFINITY);
     }
 
     static boolean isWithinFov(Vec3 lookDirection, Vec3 targetDirection, double maxDegrees) {
@@ -95,15 +103,19 @@ public class TargetSelector {
             return true;
         }
 
-        return visibilityPoints(targetBox).stream()
-                .anyMatch(point -> isWithinFov(lookDirection, point.subtract(eyePos), maxDegrees));
+        List<Vec3> points = TaczHitboxCompat.sampleAabb(targetBox);
+        return points.stream().anyMatch(point ->
+                isWithinFov(lookDirection, point.subtract(eyePos), maxDegrees));
     }
 
-    static boolean isTargetWithinFov(Vec3 eyePos, Vec3 lookDirection, LivingEntity target, double maxDegrees) {
-        if (isBoxWithinFov(eyePos, lookDirection, target.getBoundingBox(), maxDegrees)) {
-            return true;
-        }
-        return peekHeadPoints(target).stream()
+    static boolean isTargetWithinFov(
+            Player shooter,
+            Vec3 eyePos,
+            Vec3 lookDirection,
+            LivingEntity target,
+            double maxDegrees
+    ) {
+        return TaczHitboxCompat.getAimRegions(target, shooter).allPoints().stream()
                 .anyMatch(point -> isWithinFov(lookDirection, point.subtract(eyePos), maxDegrees));
     }
 
@@ -135,7 +147,7 @@ public class TargetSelector {
             if (living == player) continue;
             if (excludeTeammates && living instanceof Player candidate && TeammateManager.isEffectiveTeammate(player, candidate)) continue;
 
-            AABB entityBox = living.getBoundingBox().inflate(0.3);
+            AABB entityBox = TaczHitboxCompat.getHitboxBox(living, player);
             Optional<Vec3> hitOpt = entityBox.clip(eyePos, finalEndPos);
             if (hitOpt.isEmpty()) continue;
 
@@ -164,33 +176,26 @@ public class TargetSelector {
     }
 
     public static boolean hasLineOfSight(Player player, LivingEntity target) {
-        for (Vec3 to : visibilityPoints(target)) {
-            if (isPointVisible(player, to)) return true;
+        for (Vec3 point : visibilityPoints(target, player)) {
+            if (isPointVisible(player, point)) return true;
         }
         return false;
     }
 
     static Vec3 visibleAimPoint(Player player, LivingEntity target, boolean preferHead) {
-        boolean headAim = shouldAimAtHead(target.getPose(), target.getBoundingBox().getYsize(), preferHead);
-        List<Vec3> peekHeadPoints = headAim ? peekHeadPoints(target) : List.of();
-        if (headAim) {
-            for (Vec3 point : peekHeadPoints) {
-                if (isPointVisible(player, point)) return point;
-            }
+        TaczHitboxCompat.AimRegions regions = TaczHitboxCompat.getAimRegions(target, player);
+        List<Vec3> preferred = regions.preferredPoints(preferHead);
+        for (Vec3 point : preferred) {
+            if (isPointVisible(player, point)) return point;
         }
 
-        List<Vec3> points = visibilityPoints(target.getBoundingBox());
-        int[] order = headAim
-                ? new int[]{0, 1, 2, 3, 4, 5, 6}
-                : new int[]{1, 0, 2, 3, 4, 5, 6};
-        for (int index : order) {
-            Vec3 point = points.get(index);
+        List<Vec3> fallback = regions.fallbackPoints(preferHead);
+        for (Vec3 point : fallback) {
             if (isPointVisible(player, point)) return point;
         }
-        for (Vec3 point : peekHeadPoints) {
-            if (isPointVisible(player, point)) return point;
-        }
-        return headAim && !peekHeadPoints.isEmpty() ? peekHeadPoints.get(0) : points.get(headAim ? 0 : 1);
+        if (!preferred.isEmpty()) return preferred.get(0);
+        if (!fallback.isEmpty()) return fallback.get(0);
+        return TaczHitboxCompat.getHitboxBox(target, player).getCenter();
     }
 
     static boolean isPointVisible(Player player, Vec3 to) {
@@ -209,61 +214,12 @@ public class TargetSelector {
         return target instanceof Player candidate ? candidate : null;
     }
 
-    static List<Vec3> visibilityPoints(LivingEntity target) {
-        List<Vec3> peekPoints = peekHeadPoints(target);
-        if (peekPoints.isEmpty()) {
-            return visibilityPoints(target.getBoundingBox());
+    static List<Vec3> visibilityPoints(LivingEntity target, Entity shooter) {
+        TaczHitboxCompat.AimRegions regions = TaczHitboxCompat.getAimRegions(target, shooter);
+        if (!regions.allPoints().isEmpty()) {
+            return regions.allPoints();
         }
-
-        List<Vec3> points = new ArrayList<>(peekPoints.size() + 7);
-        points.addAll(peekPoints);
-        points.addAll(visibilityPoints(target.getBoundingBox()));
-        return List.copyOf(points);
-    }
-
-    static boolean shouldAimAtHead(Pose pose, double poseHeight, boolean preferHead) {
-        return preferHead && !isLowProfilePose(pose, poseHeight);
-    }
-
-    /** Swimming/prone targets need world-space body aims, not GD656's upright upper-body box. */
-    static boolean isLowProfilePose(Pose pose, double poseHeight) {
-        return pose == Pose.SWIMMING || poseHeight < 1.7;
-    }
-
-    private static List<Vec3> peekHeadPoints(LivingEntity target) {
-        if (!(target instanceof Player player)
-                || isLowProfilePose(player.getPose(), player.getBoundingBox().getYsize())) {
-            return List.of();
-        }
-        return PeekTargetCompat.headAimPoints(player);
-    }
-
-    static List<Vec3> visibilityPoints(AABB box) {
-        double height = box.getYsize();
-        double epsilon = Math.min(1.0e-4, height * 0.1);
-        double lowerY = Math.max(box.minY + epsilon, box.minY + height * 0.2);
-        double headY = Math.min(box.maxY - epsilon, box.minY + height * 0.9);
-        double bodyY = box.getCenter().y;
-        double centerX = (box.minX + box.maxX) * 0.5;
-        double centerZ = (box.minZ + box.maxZ) * 0.5;
-
-        // Side points make targets that are only peeking out from behind a
-        // corner lockable and hittable; the three center points are still
-        // preferred by visibleAimPoint().
-        double sideXMin = box.minX + Math.max(epsilon, box.getXsize() * 0.1);
-        double sideXMax = box.maxX - Math.max(epsilon, box.getXsize() * 0.1);
-        double sideZMin = box.minZ + Math.max(epsilon, box.getZsize() * 0.1);
-        double sideZMax = box.maxZ - Math.max(epsilon, box.getZsize() * 0.1);
-
-        return List.of(
-                new Vec3(centerX, headY, centerZ),
-                new Vec3(centerX, bodyY, centerZ),
-                new Vec3(centerX, lowerY, centerZ),
-                new Vec3(sideXMin, bodyY, centerZ),
-                new Vec3(sideXMax, bodyY, centerZ),
-                new Vec3(centerX, bodyY, sideZMin),
-                new Vec3(centerX, bodyY, sideZMax)
-        );
+        return TaczHitboxCompat.sampleAabb(TaczHitboxCompat.getHitboxBox(target, shooter));
     }
 
     public static void resetIfTarget(LivingEntity target) {

@@ -18,22 +18,18 @@ public class RotationHelper {
     static float[] getTargetRotation(Player player, LivingEntity target, AimDecision decision) {
         Vec3 spawn = BallisticsSolver.spawnPosition(player);
         BallisticsSolver.Parameters parameters = TaczBallistics.getParameters(player);
-        if (shouldUseDirectCloseAim(spawn, target.getBoundingBox(), parameters.speedPerTick())) {
-            // At point-blank ranges prioritize the large, visible body area.
-            // Bullet travel, gravity and latency compensation are all smaller
-            // than the collision/pose uncertainty that dominates this distance.
-            Vec3 closeAimPoint = TargetSelector.visibleAimPoint(player, target, false);
+        if (shouldUseDirectCloseAim(
+                spawn,
+                TaczHitboxCompat.getHitboxBox(target, player),
+                parameters.speedPerTick()
+        )) {
+            // At point-blank ranges, avoid extrapolating beyond the visible TACZ aim region.
+            Vec3 closeAimPoint = TargetSelector.visibleAimPoint(player, target, decision.headshot());
             return directionToRotation(player, closeAimPoint.subtract(spawn));
         }
 
         Vec3 targetVelocity = BallisticsSolver.targetVelocity(target);
-        Vec3 baseAimPoint = TargetSelector.visibleAimPoint(player, target, decision.headshot());
-        Vec3 aimPoint = baseAimPoint.add(TaczBallistics.getTargetHitboxCenterOffset(target, targetVelocity));
-        if (!aimPoint.equals(baseAimPoint) && !TargetSelector.isPointVisible(player, aimPoint)) {
-            // If the historical server hitbox would be behind hard cover, keep
-            // the visible point rather than turning the shot into a wall hit.
-            aimPoint = baseAimPoint;
-        }
+        Vec3 aimPoint = TargetSelector.visibleAimPoint(player, target, decision.headshot());
 
         BallisticsSolver.AimSolution solution = BallisticsSolver.solve(
                 spawn, aimPoint, targetVelocity, parameters
@@ -68,21 +64,6 @@ public class RotationHelper {
                 Mth.wrapDegrees(targetYaw),
                 Mth.clamp(targetPitch, -90.0F, 90.0F)
         };
-    }
-
-    static Vec3 targetPoint(AABB box, boolean aimAtHead) {
-        if (!aimAtHead) {
-            return box.getCenter();
-        }
-
-        double height = box.getYsize();
-        double epsilon = Math.min(1.0e-4, height * 0.1);
-        double y = Math.min(box.maxY - epsilon, box.minY + height * 0.9);
-        return new Vec3(
-                (box.minX + box.maxX) * 0.5,
-                y,
-                (box.minZ + box.maxZ) * 0.5
-        );
     }
 
     public static void applySnapRotation(Player player, float targetYaw, float targetPitch) {

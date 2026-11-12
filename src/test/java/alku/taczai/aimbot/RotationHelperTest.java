@@ -10,18 +10,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class RotationHelperTest {
     @Test
-    void proneAimPointsStayInsideCurrentBoundingBox() {
-        AABB proneTarget = new AABB(-0.3, 0.0, 2.0, 0.3, 0.6, 2.6);
-
-        var bodyPoint = RotationHelper.targetPoint(proneTarget, false);
-        var headPoint = RotationHelper.targetPoint(proneTarget, true);
-
-        assertEquals(proneTarget.getCenter(), bodyPoint);
-        assertTrue(proneTarget.contains(headPoint));
-        assertTrue(headPoint.y > bodyPoint.y);
-    }
-
-    @Test
     void closeTargetsUseDirectAimWhenWithinOneBulletTick() {
         Vec3 spawn = new Vec3(0.0, 1.6, 0.0);
         AABB closeTarget = new AABB(-0.3, 0.0, 3.7, 0.3, 1.8, 4.3);

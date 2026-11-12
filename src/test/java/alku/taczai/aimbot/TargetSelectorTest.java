@@ -1,6 +1,5 @@
 package alku.taczai.aimbot;
 
-import net.minecraft.world.entity.Pose;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
@@ -20,37 +19,34 @@ class TargetSelectorTest {
     }
 
     @Test
-    void proneTargetVisibilityPointsStayInsideCurrentBoundingBox() {
+    void targetVisibilitySamplesStayInsideTaczCollisionBox() {
         AABB proneTarget = new AABB(-0.3, 0.0, 2.0, 0.3, 0.6, 2.6);
+        Vec3 targetPosition = new Vec3(0.0, 0.0, 2.3);
+        var regions = TaczHitboxCompat.sampleAimRegions(proneTarget, null, targetPosition, 0.42);
 
-        var points = TargetSelector.visibilityPoints(proneTarget);
-
-        assertEquals(7, points.size());
-        assertTrue(points.stream().allMatch(proneTarget::contains));
+        assertTrue(regions.allPoints().stream().allMatch(proneTarget::contains));
+        assertTrue(regions.headPoints().stream().allMatch(point -> point.y < 0.7));
     }
 
     @Test
-    void visibilityIncludesAHeadPoint() {
+    void headTargetsUseTaczDefaultEyeHeightBand() {
         AABB standingTarget = new AABB(-0.3, 0.0, 2.0, 0.3, 1.8, 2.6);
+        Vec3 targetPosition = new Vec3(0.0, 0.0, 2.3);
+        var regions = TaczHitboxCompat.sampleAimRegions(standingTarget, null, targetPosition, 1.62);
 
-        var points = TargetSelector.visibilityPoints(standingTarget);
-
-        assertTrue(points.get(0).y >= standingTarget.minY + standingTarget.getYsize() * 0.9 - 1.0e-4);
+        assertTrue(regions.headPoints().stream().allMatch(point -> point.y > 1.37 && point.y < 1.87));
+        assertTrue(regions.bodyPoints().stream().allMatch(point -> point.y <= 1.37 || point.y >= 1.87));
     }
 
     @Test
-    void proneAndSwimmingTargetsUseOnlyPoseHeightHeadPoints() {
-        assertTrue(TargetSelector.isLowProfilePose(Pose.SWIMMING, 1.8));
-        assertTrue(TargetSelector.isLowProfilePose(Pose.CROUCHING, 1.5));
-        assertTrue(TargetSelector.isLowProfilePose(Pose.STANDING, 0.6));
-        assertFalse(TargetSelector.isLowProfilePose(Pose.STANDING, 1.8));
-        assertFalse(TargetSelector.shouldAimAtHead(Pose.SWIMMING, 0.6, true));
-        assertFalse(TargetSelector.shouldAimAtHead(Pose.CROUCHING, 1.5, true));
-        assertFalse(TargetSelector.shouldAimAtHead(Pose.STANDING, 0.6, true));
-        assertTrue(TargetSelector.shouldAimAtHead(Pose.STANDING, 1.8, true));
-
+    void fallbackHeadshotBandFollowsLowProfileEyeHeight() {
         AABB proneTarget = new AABB(-0.3, 0.0, 2.0, 0.3, 0.6, 2.6);
-        assertTrue(TargetSelector.visibilityPoints(proneTarget).get(0).y <= proneTarget.maxY);
+        Vec3 targetPosition = new Vec3(0.0, 0.0, 2.3);
+        var regions = TaczHitboxCompat.sampleAimRegions(proneTarget, null, targetPosition, 0.42);
+
+        assertFalse(regions.headPoints().isEmpty());
+        assertTrue(regions.headPoints().stream().allMatch(point -> point.y > 0.17 && point.y < 0.67));
+        assertTrue(regions.bodyPoints().stream().noneMatch(point -> point.y > 0.17 && point.y < 0.67));
     }
 
     @Test
