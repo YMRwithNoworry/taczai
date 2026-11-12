@@ -27,14 +27,30 @@ final class PeekTargetCompat {
     }
 
     static List<List<Vec3>> activeHitboxCorners(Player player) {
-        PeekHitboxes hitboxes = getActiveHitboxes(player);
+        return activeHitboxCorners(player, CURRENT_STATE_PARTIAL_TICK);
+    }
+
+    static List<List<Vec3>> activeHitboxCorners(Player player, float partialTick) {
+        PeekHitboxes hitboxes = getActiveHitboxes(player, partialTick);
         if (hitboxes == null) {
             return List.of();
         }
-        return List.of(hitboxes.lowerBodyCorners(), hitboxes.upperBodyCorners());
+        Vec3 renderOffset = TaczHitboxCompat.renderPositionOffset(player, partialTick);
+        return List.of(
+                translateCorners(hitboxes.lowerBodyCorners(), renderOffset),
+                translateCorners(hitboxes.upperBodyCorners(), renderOffset)
+        );
+    }
+
+    private static List<Vec3> translateCorners(List<Vec3> corners, Vec3 offset) {
+        return corners.stream().map(point -> point.add(offset)).toList();
     }
 
     private static PeekHitboxes getActiveHitboxes(Player player) {
+        return getActiveHitboxes(player, CURRENT_STATE_PARTIAL_TICK);
+    }
+
+    private static PeekHitboxes getActiveHitboxes(Player player, float partialTick) {
         if (player == null) {
             return null;
         }
@@ -49,8 +65,8 @@ final class PeekTargetCompat {
                 return null;
             }
 
-            float angle = ((Number) compat.renderAngle.invoke(null, player, CURRENT_STATE_PARTIAL_TICK)).floatValue();
-            float offset = ((Number) compat.renderOffset.invoke(null, player, CURRENT_STATE_PARTIAL_TICK)).floatValue();
+            float angle = ((Number) compat.renderAngle.invoke(null, player, partialTick)).floatValue();
+            float offset = ((Number) compat.renderOffset.invoke(null, player, partialTick)).floatValue();
             if (!Boolean.TRUE.equals(compat.hasActiveHitboxes.invoke(null, angle, offset))) {
                 return null;
             }

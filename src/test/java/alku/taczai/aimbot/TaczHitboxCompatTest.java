@@ -4,6 +4,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -44,6 +45,47 @@ class TaczHitboxCompatTest {
         assertTrue(regions.bodyPoints().stream().noneMatch(point ->
                 TaczHitboxCompat.isHeadshotPoint(point, targetPosition, configuredHead, 1.62)));
         assertTrue(regions.headPoints().stream().allMatch(point -> point.y < 1.0));
+    }
+
+    @Test
+    void renderBoxInterpolatesToTheEntityRenderPosition() {
+        AABB currentBox = new AABB(9.7, 0.0, 2.7, 10.3, 1.8, 3.3);
+
+        AABB halfwayBox = TaczHitboxCompat.interpolateRenderBox(
+                currentBox,
+                new Vec3(10.0, 0.0, 3.0),
+                new Vec3(8.0, 0.0, 1.0),
+                0.5F
+        );
+        AABB currentFrameBox = TaczHitboxCompat.interpolateRenderBox(
+                currentBox,
+                new Vec3(10.0, 0.0, 3.0),
+                new Vec3(8.0, 0.0, 1.0),
+                1.0F
+        );
+
+        assertEquals(9.0, halfwayBox.getCenter().x, 1.0e-9);
+        assertEquals(2.0, halfwayBox.getCenter().z, 1.0e-9);
+        assertEquals(currentBox, currentFrameBox);
+        assertEquals(new Vec3(-1.0, 0.0, -1.0), TaczHitboxCompat.renderPositionOffset(
+                new Vec3(10.0, 0.0, 3.0), new Vec3(8.0, 0.0, 1.0), 0.5F
+        ));
+    }
+
+    @Test
+    void renderShapeKeepsTaczSweepAndToleranceWithoutHistoricalTranslation() {
+        AABB box = new AABB(0.0, 0.0, 0.0, 1.0, 1.0, 1.0);
+        Vec3 velocity = new Vec3(0.2, -0.1, 0.4);
+
+        AABB rendered = TaczHitboxCompat.currentHitboxShape(box, velocity, true);
+        AABB crouched = TaczHitboxCompat.currentHitboxShape(box, velocity, false);
+
+        assertEquals(box.minX, rendered.minX);
+        assertEquals(box.maxX + 0.2, rendered.maxX, 1.0e-9);
+        assertEquals(box.minY - 0.1, rendered.minY, 1.0e-9);
+        assertEquals(box.maxY + 0.0625, rendered.maxY, 1.0e-9);
+        assertEquals(box.maxZ + 0.4, rendered.maxZ, 1.0e-9);
+        assertEquals(box.maxY, crouched.maxY, 1.0e-9);
     }
 
     @Test

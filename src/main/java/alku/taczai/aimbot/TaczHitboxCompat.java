@@ -28,19 +28,57 @@ public final class TaczHitboxCompat {
         return Arrays.stream(BOX_EDGES).map(int[]::clone).toArray(int[][]::new);
     }
 
-    public static List<List<Vec3>> getHitboxCorners(Entity target, Entity shooter) {
+    /** TACZ collision shape at the entity's rendered position, without server rewind. */
+    public static List<List<Vec3>> getRenderHitboxCorners(Entity target, float partialTick) {
         if (target == null) {
             return List.of();
         }
 
         if (target instanceof Player player) {
-            List<List<Vec3>> peekRegions = PeekTargetCompat.activeHitboxCorners(player);
+            List<List<Vec3>> peekRegions = PeekTargetCompat.activeHitboxCorners(player, partialTick);
             if (!peekRegions.isEmpty()) {
                 return peekRegions;
             }
         }
 
-        return List.of(PeekTargetCompat.boxCorners(getHitboxBox(target, shooter)));
+        return List.of(PeekTargetCompat.boxCorners(getRenderHitboxBox(target, partialTick)));
+    }
+
+    static AABB getRenderHitboxBox(Entity target, float partialTick) {
+        if (target == null) {
+            return new AABB(0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+        }
+
+        Vec3 currentPosition = target.position();
+        Vec3 previousPosition = new Vec3(target.xOld, target.yOld, target.zOld);
+        AABB currentShape = currentHitboxShape(
+                target.getBoundingBox(),
+                currentPosition.subtract(previousPosition),
+                target instanceof Player player && !player.isCrouching()
+        );
+        return interpolateRenderBox(currentShape, currentPosition, previousPosition, partialTick);
+    }
+
+    static AABB currentHitboxShape(AABB box, Vec3 velocity, boolean standingPlayer) {
+        // Keep TACZ's upward tolerance and one-tick swept volume; skip the
+        // later translation to a historical position used for bullet checks.
+        AABB shape = standingPlayer ? box.expandTowards(0.0, 0.0625, 0.0) : box;
+        return shape.expandTowards(velocity);
+    }
+
+    static Vec3 renderPositionOffset(Entity target, float partialTick) {
+        return renderPositionOffset(
+                target.position(), new Vec3(target.xOld, target.yOld, target.zOld), partialTick
+        );
+    }
+
+    static Vec3 renderPositionOffset(Vec3 currentPosition, Vec3 previousPosition, float partialTick) {
+        double clampedPartialTick = Math.max(0.0, Math.min(1.0, partialTick));
+        return previousPosition.lerp(currentPosition, clampedPartialTick).subtract(currentPosition);
+    }
+
+    static AABB interpolateRenderBox(AABB currentBox, Vec3 currentPosition, Vec3 previousPosition, float partialTick) {
+        return currentBox.move(renderPositionOffset(currentPosition, previousPosition, partialTick));
     }
 
     static AimRegions getAimRegions(LivingEntity target, Entity shooter) {

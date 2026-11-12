@@ -46,7 +46,9 @@ public class EnemyOutlineHandler {
         RenderSystem.disableDepthTest();
         try {
             for (Entity enemy : enemies) {
-                for (List<Vec3> corners : TaczHitboxCompat.getHitboxCorners(enemy, localPlayer)) {
+                for (List<Vec3> corners : TaczHitboxCompat.getRenderHitboxCorners(
+                        enemy, event.getPartialTick()
+                )) {
                     renderBoxEdges(poseStack, consumer, corners, camera);
                 }
             }
