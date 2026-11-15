@@ -50,6 +50,7 @@ public class Taczai {
     private void clientSetup(final FMLClientSetupEvent event) {
         KeyMappings.register();
         MouseInputHandler.register();
+        MinecraftForge.EVENT_BUS.register(new FullbrightHandler());
         MinecraftForge.EVENT_BUS.register(new AimbotHandler());
         MinecraftForge.EVENT_BUS.register(new EnemyOutlineHandler());
         MinecraftForge.EVENT_BUS.register(new AimbotOverlay());
