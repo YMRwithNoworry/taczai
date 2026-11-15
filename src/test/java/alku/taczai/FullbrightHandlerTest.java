@@ -11,5 +11,6 @@ class FullbrightHandlerTest {
         assertTrue(FullbrightHandler.shouldRefreshNightVision(0));
         assertTrue(FullbrightHandler.shouldRefreshNightVision(240));
         assertFalse(FullbrightHandler.shouldRefreshNightVision(241));
+        assertFalse(FullbrightHandler.shouldRefreshNightVision(-1));
     }
 }

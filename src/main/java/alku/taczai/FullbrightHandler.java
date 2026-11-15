@@ -38,6 +38,6 @@ public final class FullbrightHandler {
     }
 
     static boolean shouldRefreshNightVision(int remainingTicks) {
-        return remainingTicks <= REFRESH_BEFORE_FADE_TICKS;
+        return remainingTicks >= 0 && remainingTicks <= REFRESH_BEFORE_FADE_TICKS;
     }
 }
