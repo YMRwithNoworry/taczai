@@ -11,6 +11,7 @@ import net.minecraftforge.registries.ForgeRegistries;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.random.RandomGenerator;
 
 /** Resolves the same collision and headshot regions TACZ uses for projectiles. */
 public final class TaczHitboxCompat {
@@ -108,6 +109,97 @@ public final class TaczHitboxCompat {
                 velocity,
                 target instanceof Player player && !player.isCrouching()
         );
+    }
+
+    static Vec3 randomAimPoint(LivingEntity target, boolean preferHead, RandomGenerator random) {
+        if (target == null || random == null) {
+            return null;
+        }
+
+        if (target instanceof Player player) {
+            Vec3 peekPoint = PeekTargetCompat.randomAimPoint(player, preferHead, random);
+            if (peekPoint != null) {
+                return peekPoint;
+            }
+        }
+
+        AABB hitbox = getCurrentAimHitboxBox(target);
+        AABB localHeadshotBox = getConfiguredHeadshotBox(target);
+        Vec3 targetPosition = target.position();
+        double eyeHeight = target.getEyeY() - target.getY();
+        return randomAimPoint(hitbox, localHeadshotBox, targetPosition, eyeHeight, preferHead, random);
+    }
+
+    static Vec3 randomAimPoint(
+            AABB hitbox,
+            AABB localHeadshotBox,
+            Vec3 targetPosition,
+            double eyeHeight,
+            boolean preferHead,
+            RandomGenerator random
+    ) {
+        if (hitbox == null || targetPosition == null || random == null || !isValidBox(hitbox)) {
+            return null;
+        }
+
+        AABB headshotBox = localHeadshotBox == null
+                ? new AABB(
+                        hitbox.minX,
+                        targetPosition.y + eyeHeight - 0.25,
+                        hitbox.minZ,
+                        hitbox.maxX,
+                        targetPosition.y + eyeHeight + 0.25,
+                        hitbox.maxZ
+                )
+                : localHeadshotBox.move(targetPosition);
+        AABB headRegion = intersect(hitbox, headshotBox);
+        Vec3 point = preferHead ? randomPointInBox(headRegion, random) : randomBodyPoint(
+                hitbox, targetPosition, localHeadshotBox, eyeHeight, random
+        );
+        if (point != null) {
+            return point;
+        }
+
+        point = preferHead ? randomBodyPoint(hitbox, targetPosition, localHeadshotBox, eyeHeight, random)
+                : randomPointInBox(headRegion, random);
+        if (point != null) {
+            return point;
+        }
+
+        AimRegions regions = sampleAimRegions(hitbox, localHeadshotBox, targetPosition, eyeHeight);
+        List<Vec3> fallback = regions.preferredPoints(preferHead);
+        if (fallback.isEmpty()) {
+            fallback = regions.fallbackPoints(preferHead);
+        }
+        return fallback.isEmpty() ? hitbox.getCenter() : fallback.get(random.nextInt(fallback.size()));
+    }
+
+    static Vec3 randomPointInBox(AABB box, RandomGenerator random) {
+        if (box == null || random == null || !isValidBox(box)) {
+            return null;
+        }
+
+        return new Vec3(
+                box.minX + box.getXsize() * random.nextDouble(),
+                box.minY + box.getYsize() * random.nextDouble(),
+                box.minZ + box.getZsize() * random.nextDouble()
+        );
+    }
+
+    private static Vec3 randomBodyPoint(
+            AABB hitbox,
+            Vec3 targetPosition,
+            AABB localHeadshotBox,
+            double eyeHeight,
+            RandomGenerator random
+    ) {
+        for (int attempt = 0; attempt < 128; attempt++) {
+            Vec3 point = randomPointInBox(hitbox, random);
+            if (point != null && !isHeadshotPoint(point, targetPosition, localHeadshotBox, eyeHeight)) {
+                return point;
+            }
+        }
+        return null;
     }
 
     static AimRegions sampleAimRegions(AABB hitbox, AABB localHeadshotBox, Vec3 targetPosition, double eyeHeight) {

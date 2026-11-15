@@ -18,11 +18,14 @@ import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.client.event.ViewportEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+
+import java.util.concurrent.ThreadLocalRandom;
 
 @OnlyIn(Dist.CLIENT)
 public class AimbotHandler {
@@ -34,10 +37,14 @@ public class AimbotHandler {
     private AimDecision aimDecision = null;
     private boolean forcedAim = false;
 
+    private Vec3 localAimPointOffset = null;
+
     /** Aim the local camera is rendered at while the target remains locked. */
     private boolean cameraAimActive = false;
     private float cameraAimYaw = 0.0F;
     private float cameraAimPitch = 0.0F;
+    private long lastCameraFrameNanos = 0L;
+    private final AimRotationController cameraRotation = new AimRotationController();
     private boolean autoFireControllerHeld = false;
     private long autoFireLastShootTimestamp = Long.MIN_VALUE;
 
@@ -84,7 +91,12 @@ public class AimbotHandler {
         }
 
         if (!TargetSelector.isTrackableTarget(player, lockedTarget)) {
+            LivingEntity previousTarget = lockedTarget;
             lockedTarget = TargetSelector.getActiveTarget(player);
+            if (lockedTarget != previousTarget) {
+                cameraRotation.reset(player.getYRot(), player.getXRot());
+                lastCameraFrameNanos = 0L;
+            }
         }
         if (lockedTarget == null) {
             releaseAutoFire(mc.player);
@@ -97,9 +109,10 @@ public class AimbotHandler {
         AimDecision decision = getAimDecision(lockedTarget);
         updateForcedAim(mc.player, Config.autoFire);
 
-        float[] targetRot = RotationHelper.getTargetRotation(player, lockedTarget, decision);
-        RotationHelper.applySnapRotation(player, targetRot[0], targetRot[1]);
-        holdCameraOnAim(targetRot[0], targetRot[1]);
+        activateCameraAim(player);
+        float[] targetRot = RotationHelper.getTargetRotation(
+                player, lockedTarget, decision, 1.0F, localAimPointOffset
+        );
         if (Config.autoFire && mc.screen == null) {
             handleAutoFire(mc.player, targetRot[0], targetRot[1]);
         } else {
@@ -127,23 +140,33 @@ public class AimbotHandler {
 
         AimDecision decision = getAimDecision(lockedTarget);
         float[] targetRot = RotationHelper.getTargetRotation(
-                mc.player, lockedTarget, decision, (float) event.getPartialTick()
+                mc.player, lockedTarget, decision, (float) event.getPartialTick(), localAimPointOffset
         );
-        holdCameraOnAim(targetRot[0], targetRot[1]);
-        RotationHelper.applySnapRotation(mc.player, targetRot[0], targetRot[1]);
+        activateCameraAim(mc.player);
+        long frameNanos = System.nanoTime();
+        double frameSeconds = lastCameraFrameNanos == 0L
+                ? 1.0 / 60.0
+                : (frameNanos - lastCameraFrameNanos) / 1_000_000_000.0;
+        lastCameraFrameNanos = frameNanos;
+        float[] smoothedRotation = cameraRotation.update(targetRot[0], targetRot[1], frameSeconds);
+        cameraAimYaw = smoothedRotation[0];
+        cameraAimPitch = smoothedRotation[1];
+        RotationHelper.applyRotation(mc.player, cameraAimYaw, cameraAimPitch);
         event.setYaw(cameraAimYaw);
         event.setPitch(Mth.clamp(cameraAimPitch, -90.0F, 90.0F));
     }
 
-
-    private void holdCameraOnAim(float targetYaw, float targetPitch) {
+    private void activateCameraAim(Player player) {
+        if (!cameraAimActive) {
+            cameraRotation.reset(player.getYRot(), player.getXRot());
+            lastCameraFrameNanos = 0L;
+        }
         cameraAimActive = true;
-        cameraAimYaw = targetYaw;
-        cameraAimPitch = targetPitch;
     }
 
     private void releaseCameraAim() {
         cameraAimActive = false;
+        lastCameraFrameNanos = 0L;
     }
 
     private AimDecision getAimDecision(LivingEntity target) {
@@ -152,6 +175,11 @@ public class AimbotHandler {
                 || !aimDecision.matches(Config.aimAtHead, Config.headshotRate)) {
             aimDecision = AimDecision.sample(Config.aimAtHead, Config.headshotRate);
             decisionTarget = target;
+            Player player = Minecraft.getInstance().player;
+            Vec3 aimPoint = TargetSelector.randomAimPoint(
+                    player, target, aimDecision.headshot(), ThreadLocalRandom.current()
+            );
+            localAimPointOffset = aimPoint == null ? null : aimPoint.subtract(target.position());
         }
         return aimDecision;
     }
@@ -159,10 +187,10 @@ public class AimbotHandler {
     private void clearAimDecision() {
         aimDecision = null;
         decisionTarget = null;
+        localAimPointOffset = null;
     }
 
     private void handleAutoFire(LocalPlayer localPlayer, float targetYaw, float targetPitch) {
-        RotationHelper.applySnapRotation(localPlayer, targetYaw, targetPitch);
         syncAimToServer(localPlayer);
 
         IClientPlayerGunOperator operator = IClientPlayerGunOperator.fromLocalPlayer(localPlayer);
@@ -179,6 +207,11 @@ public class AimbotHandler {
             autoFireControllerHeld = false;
             autoFireLastShootTimestamp = Long.MIN_VALUE;
             clearAimDecision();
+            return;
+        }
+
+        if (!isAimAligned(localPlayer.getYRot(), localPlayer.getXRot(), targetYaw, targetPitch, 1.0F)) {
+            releaseAutoFire(localPlayer);
             return;
         }
 
@@ -258,6 +291,17 @@ public class AimbotHandler {
         }
     }
 
+    static boolean isAimAligned(
+            float currentYaw,
+            float currentPitch,
+            float targetYaw,
+            float targetPitch,
+            float toleranceDegrees
+    ) {
+        return Math.abs(Mth.wrapDegrees(targetYaw - currentYaw)) <= toleranceDegrees
+                && Math.abs(targetPitch - currentPitch) <= toleranceDegrees;
+    }
+
     static boolean shouldAutoFire(boolean reloading, long shootCooldown) {
         return !reloading
                 && shootCooldown >= 0L
@@ -269,6 +313,7 @@ public class AimbotHandler {
         if (event.getTarget() == null) {
             lockedTarget = null;
             clearAimDecision();
+            releaseCameraAim();
         }
     }
 

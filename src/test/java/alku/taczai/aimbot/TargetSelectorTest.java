@@ -65,6 +65,23 @@ class TargetSelectorTest {
     }
 
     @Test
+    void lockedRandomPointFollowsInterpolatedTargetWithoutRerollingItsOffset() {
+        Vec3 previous = new Vec3(1.0, 2.0, 3.0);
+        Vec3 current = new Vec3(3.0, 4.0, 7.0);
+        Vec3 localOffset = new Vec3(0.1, 0.25, -0.15);
+
+        Vec3 halfway = TargetSelector.interpolateLockedAimPoint(previous, current, localOffset, 0.5F);
+        Vec3 currentFrame = TargetSelector.interpolateLockedAimPoint(previous, current, localOffset, 1.0F);
+
+        assertEquals(2.1, halfway.x, 1.0e-9);
+        assertEquals(3.25, halfway.y, 1.0e-9);
+        assertEquals(4.85, halfway.z, 1.0e-9);
+        assertEquals(3.1, currentFrame.x, 1.0e-9);
+        assertEquals(4.25, currentFrame.y, 1.0e-9);
+        assertEquals(6.85, currentFrame.z, 1.0e-9);
+    }
+
+    @Test
     void fovUsesMaximumAngularOffsetFromCrosshair() {
         Vec3 look = new Vec3(0.0, 0.0, 1.0);
         assertTrue(TargetSelector.isWithinFov(look, directionAtDegrees(0.0), 20.0));

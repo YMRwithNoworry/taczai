@@ -13,6 +13,7 @@ import net.minecraft.world.phys.Vec3;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.random.RandomGenerator;
 
 public class TargetSelector {
     private static LivingEntity confirmedTarget = null;
@@ -180,6 +181,51 @@ public class TargetSelector {
             if (isPointVisible(player, point)) return true;
         }
         return false;
+    }
+
+    static Vec3 randomAimPoint(Player player, LivingEntity target, boolean preferHead, RandomGenerator random) {
+        if (player == null || target == null || random == null) {
+            return null;
+        }
+
+        for (int attempt = 0; attempt < 16; attempt++) {
+            Vec3 point = TaczHitboxCompat.randomAimPoint(target, preferHead, random);
+            if (point == null) {
+                break;
+            }
+            if (isPointVisible(player, point)) {
+                return point;
+            }
+        }
+        return visibleAimPoint(player, target, preferHead);
+    }
+
+    static Vec3 lockedAimPoint(
+            Player player,
+            LivingEntity target,
+            Vec3 localOffset,
+            boolean preferHead,
+            float partialTick
+    ) {
+        if (localOffset == null) {
+            return visibleAimPoint(player, target, preferHead, partialTick);
+        }
+
+        Vec3 previousPosition = new Vec3(target.xOld, target.yOld, target.zOld);
+        Vec3 point = interpolateLockedAimPoint(previousPosition, target.position(), localOffset, partialTick);
+        return isPointVisible(player, point, partialTick)
+                ? point
+                : visibleAimPoint(player, target, preferHead, partialTick);
+    }
+
+    static Vec3 interpolateLockedAimPoint(
+            Vec3 previousPosition,
+            Vec3 currentPosition,
+            Vec3 localOffset,
+            float partialTick
+    ) {
+        double partial = Math.max(0.0, Math.min(1.0, partialTick));
+        return previousPosition.lerp(currentPosition, partial).add(localOffset);
     }
 
     static Vec3 visibleAimPoint(Player player, LivingEntity target, boolean preferHead) {

@@ -25,6 +25,16 @@ public class RotationHelper {
             AimDecision decision,
             float partialTick
     ) {
+        return getTargetRotation(player, target, decision, partialTick, null);
+    }
+
+    static float[] getTargetRotation(
+            Player player,
+            LivingEntity target,
+            AimDecision decision,
+            float partialTick,
+            Vec3 localAimPointOffset
+    ) {
         Vec3 eyePosition = player.getEyePosition(partialTick);
         Vec3 spawn = eyePosition.add(0.0, -0.1, 0.0);
         BallisticsSolver.Parameters parameters = TaczBallistics.getParameters(player);
@@ -33,14 +43,16 @@ public class RotationHelper {
                 TaczHitboxCompat.getRenderHitboxBox(target, partialTick),
                 parameters.speedPerTick()
         )) {
-            Vec3 closeAimPoint = TargetSelector.visibleAimPoint(
-                    player, target, decision.headshot(), partialTick
+            Vec3 closeAimPoint = TargetSelector.lockedAimPoint(
+                    player, target, localAimPointOffset, decision.headshot(), partialTick
             );
             return directionToRotation(player, closeAimPoint.subtract(spawn));
         }
 
         Vec3 targetVelocity = BallisticsSolver.targetVelocity(target);
-        Vec3 aimPoint = TargetSelector.visibleAimPoint(player, target, decision.headshot(), partialTick);
+        Vec3 aimPoint = TargetSelector.lockedAimPoint(
+                player, target, localAimPointOffset, decision.headshot(), partialTick
+        );
 
         BallisticsSolver.AimSolution solution = BallisticsSolver.solve(
                 spawn, aimPoint, targetVelocity, parameters
@@ -77,7 +89,7 @@ public class RotationHelper {
         };
     }
 
-    public static void applySnapRotation(Player player, float targetYaw, float targetPitch) {
+    public static void applyRotation(Player player, float targetYaw, float targetPitch) {
         player.setYRot(Mth.wrapDegrees(targetYaw));
         player.setXRot(Mth.clamp(targetPitch, -90.0F, 90.0F));
     }

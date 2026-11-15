@@ -56,6 +56,13 @@ class AimbotHandlerTest {
     }
 
     @Test
+    void autoFireWaitsUntilTheSmoothedCameraIsAligned() {
+        assertFalse(AimbotHandler.isAimAligned(0.0F, 0.0F, 2.0F, 0.0F, 1.0F));
+        assertFalse(AimbotHandler.isAimAligned(0.0F, 0.0F, 0.0F, -2.0F, 1.0F));
+        assertTrue(AimbotHandler.isAimAligned(179.5F, 2.0F, -180.0F, 2.5F, 1.0F));
+    }
+
+    @Test
     void autoFireRunsAsSoonAsTaczCooldownAllowsIt() {
         assertTrue(AimbotHandler.shouldAutoFire(false, 0L));
         assertTrue(AimbotHandler.shouldAutoFire(false, 25L));
