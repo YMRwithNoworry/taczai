@@ -26,6 +26,21 @@ class AimRotationControllerTest {
     }
 
     @Test
+    void turnBuildsSpeedOverSeveralFramesInsteadOfJumpingToTarget() {
+        AimRotationController controller = new AimRotationController();
+        controller.reset(0.0F, 0.0F);
+
+        float[] first = controller.update(90.0F, 0.0F, 1.0 / 60.0);
+        float[] second = controller.update(90.0F, 0.0F, 1.0 / 60.0);
+        float[] third = controller.update(90.0F, 0.0F, 1.0 / 60.0);
+
+        assertTrue(first[0] > 0.0F);
+        assertTrue(second[0] > first[0]);
+        assertTrue(third[0] > second[0]);
+        assertTrue(third[0] < 2.0F);
+    }
+
+    @Test
     void yawUsesTheShortPathAcrossTheWrapBoundary() {
         AimRotationController controller = new AimRotationController();
         controller.reset(179.0F, 0.0F);

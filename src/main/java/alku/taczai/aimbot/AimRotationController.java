@@ -4,8 +4,9 @@ import net.minecraft.util.Mth;
 
 /** Fast, inertial camera turns for aim tracking without instant rotation snaps. */
 final class AimRotationController {
-    private static final double MAX_ANGULAR_SPEED = 720.0;
-    private static final double ANGULAR_ACCELERATION = 5400.0;
+    private static final double MAX_ANGULAR_SPEED = 270.0;
+    private static final double ANGULAR_ACCELERATION = 1200.0;
+    private static final double RESPONSE_RATE = 9.0;
     private static final double MAX_FRAME_SECONDS = 0.05;
     private static final double SETTLE_ANGLE = 0.03;
     private static final double SETTLE_SPEED = 0.15;
@@ -56,7 +57,11 @@ final class AimRotationController {
         }
 
         double brakingSpeed = Math.sqrt(2.0 * ANGULAR_ACCELERATION * Math.abs(error));
-        double desiredVelocity = Math.copySign(Math.min(MAX_ANGULAR_SPEED, brakingSpeed), error);
+        double responseSpeed = RESPONSE_RATE * Math.abs(error);
+        double desiredVelocity = Math.copySign(
+                Math.min(MAX_ANGULAR_SPEED, Math.min(responseSpeed, brakingSpeed)),
+                error
+        );
         double maxVelocityChange = ANGULAR_ACCELERATION * deltaTime;
         double nextVelocity = approach(velocity, desiredVelocity, maxVelocityChange);
         double movement = (velocity + nextVelocity) * 0.5 * deltaTime;
