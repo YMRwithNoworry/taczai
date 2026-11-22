@@ -13,7 +13,7 @@ import net.minecraft.world.phys.Vec3;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
-import java.util.random.RandomGenerator;
+import java.util.function.Predicate;
 
 public class TargetSelector {
     private static LivingEntity confirmedTarget = null;
@@ -183,100 +183,44 @@ public class TargetSelector {
     }
 
     public static boolean hasLineOfSight(Player player, LivingEntity target) {
+        Vec3 from = RotationHelper.shotOrigin(player, 1.0F);
         for (Vec3 point : visibilityPoints(target, player)) {
-            if (isPointVisible(player, point)) return true;
+            if (isPointVisible(player, from, point)) return true;
         }
         return false;
     }
 
-    static Vec3 randomAimPoint(Player player, LivingEntity target, boolean preferHead, RandomGenerator random) {
-        if (player == null || target == null || random == null) {
-            return null;
-        }
-
-        for (int attempt = 0; attempt < 16; attempt++) {
-            Vec3 point = TaczHitboxCompat.randomAimPoint(target, preferHead, random);
-            if (point == null) {
-                break;
-            }
-            if (isPointVisible(player, point)) {
-                return point;
-            }
-        }
-        return visibleAimPoint(player, target, preferHead);
-    }
-
-    static Vec3 lockedAimPoint(
-            Player player,
-            LivingEntity target,
-            Vec3 localOffset,
-            boolean preferHead,
-            float partialTick
+    static Vec3 visibleAimPoint(
+            Player player, LivingEntity target, Vec3 from, boolean preferHead, float partialTick
     ) {
-        if (localOffset == null) {
-            return visibleAimPoint(player, target, preferHead, partialTick);
-        }
-
-        Vec3 previousPosition = new Vec3(target.xOld, target.yOld, target.zOld);
-        Vec3 point = interpolateLockedAimPoint(previousPosition, target.position(), localOffset, partialTick);
-        return isPointVisible(player, point, partialTick)
-                ? point
-                : visibleAimPoint(player, target, preferHead, partialTick);
+        return firstVisibleAimPoint(
+                TaczHitboxCompat.getAimRegions(target, player),
+                preferHead,
+                TaczHitboxCompat.renderPositionOffset(target, partialTick),
+                point -> isPointVisible(player, from, point)
+        );
     }
 
-    static Vec3 interpolateLockedAimPoint(
-            Vec3 previousPosition,
-            Vec3 currentPosition,
-            Vec3 localOffset,
-            float partialTick
+    static Vec3 firstVisibleAimPoint(
+            TaczHitboxCompat.AimRegions regions, boolean preferHead, Vec3 renderOffset, Predicate<Vec3> visible
     ) {
-        double partial = Math.max(0.0, Math.min(1.0, partialTick));
-        return previousPosition.lerp(currentPosition, partial).add(localOffset);
+        List<Vec3> preferred = preferHead ? regions.headPoints() : regions.bodyPoints();
+        List<Vec3> fallback = preferHead ? regions.bodyPoints() : regions.headPoints();
+        Vec3 point = firstVisiblePoint(preferred, renderOffset, visible);
+        return point != null ? point : firstVisiblePoint(fallback, renderOffset, visible);
     }
 
-    static Vec3 visibleAimPoint(Player player, LivingEntity target, boolean preferHead) {
-        return visibleAimPoint(player, target, preferHead, 1.0F);
-    }
-
-    static Vec3 visibleAimPoint(Player player, LivingEntity target, boolean preferHead, float partialTick) {
-        Vec3 targetVelocity = BallisticsSolver.targetVelocity(target);
-        TaczHitboxCompat.AimRegions regions = TaczHitboxCompat.getAimRegions(target, player);
-        List<Vec3> preferred = regions.preferredPoints(preferHead).stream()
-                .map(point -> interpolateAimPoint(point, targetVelocity, partialTick))
-                .toList();
-        for (Vec3 point : preferred) {
-            if (isPointVisible(player, point, partialTick)) return point;
+    private static Vec3 firstVisiblePoint(List<Vec3> points, Vec3 renderOffset, Predicate<Vec3> visible) {
+        for (Vec3 point : points) {
+            Vec3 renderedPoint = point.add(renderOffset);
+            if (visible.test(renderedPoint)) return renderedPoint;
         }
-
-        List<Vec3> fallback = regions.fallbackPoints(preferHead).stream()
-                .map(point -> interpolateAimPoint(point, targetVelocity, partialTick))
-                .toList();
-        for (Vec3 point : fallback) {
-            if (isPointVisible(player, point, partialTick)) return point;
-        }
-        if (!preferred.isEmpty()) return preferred.get(0);
-        if (!fallback.isEmpty()) return fallback.get(0);
-        return TaczHitboxCompat.getCurrentAimHitboxBox(target).getCenter();
+        return null;
     }
 
-    static Vec3 interpolateAimPoint(Vec3 currentPoint, Vec3 targetVelocity, float partialTick) {
-        double partial = Math.max(0.0, Math.min(1.0, partialTick));
-        return currentPoint.add(targetVelocity.scale(partial - 1.0));
-    }
-
-    static boolean isPointVisible(Player player, Vec3 to) {
-        return isPointVisible(player, to, 1.0F);
-    }
-
-    static boolean isPointVisible(Player player, Vec3 to, float partialTick) {
-        Vec3 from = player.getEyePosition(partialTick);
+    private static boolean isPointVisible(Player player, Vec3 from, Vec3 to) {
         ClipContext context = new ClipContext(from, to, ClipContext.Block.COLLIDER, ClipContext.Fluid.NONE, player);
-        HitResult result = player.level().clip(context);
-        if (result.getType() != HitResult.Type.BLOCK) return true;
-
-        double blockDist = result.getLocation().distanceToSqr(from);
-        double targetDist = to.distanceToSqr(from);
-        return blockDist >= targetDist - 1.0;
+        return player.level().clip(context).getType() == HitResult.Type.MISS;
     }
 
     public static Player raytracePlayer(Player player) {

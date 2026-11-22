@@ -5,7 +5,6 @@ import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
-import java.util.Random;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -29,25 +28,6 @@ class PeekTargetCompatTest {
         assertEquals(center, points.get(0));
         assertTrue(points.stream().allMatch(point ->
                 inside(point, center, right, halfRight, up, halfUp, forward, halfForward)));
-    }
-
-    @Test
-    void randomAimPointStaysInsideTheRotatedUpperPeekRegion() {
-        Vec3 center = new Vec3(4.0, 2.0, -3.0);
-        Vec3 right = new Vec3(0.6, 0.0, 0.8);
-        Vec3 up = new Vec3(0.0, 1.0, 0.0);
-        Vec3 forward = new Vec3(-0.8, 0.0, 0.6);
-
-        Vec3 first = PeekTargetCompat.randomOrientedBoxPoint(
-                center, right, 0.3, up, 0.68, forward, 0.2, new Random(11L)
-        );
-        Vec3 second = PeekTargetCompat.randomOrientedBoxPoint(
-                center, right, 0.3, up, 0.68, forward, 0.2, new Random(12L)
-        );
-
-        assertTrue(inside(first, center, right, 0.3, up, 0.68, forward, 0.2));
-        assertTrue(inside(second, center, right, 0.3, up, 0.68, forward, 0.2));
-        assertTrue(first.distanceTo(second) > 0.01);
     }
 
     @Test

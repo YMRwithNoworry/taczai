@@ -4,8 +4,11 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TargetSelectorTest {
@@ -50,35 +53,31 @@ class TargetSelectorTest {
     }
 
     @Test
-    void renderAimPointUsesInterpolatedPositionWithinTheCurrentTick() {
-        Vec3 currentAimPoint = new Vec3(10.0, 1.5, 4.0);
-        Vec3 targetVelocity = new Vec3(0.2, 0.0, -0.4);
+    void visibleAimPrefersTheRegionCenterAtTheRenderedPosition() {
+        AABB standingTarget = new AABB(-0.3, 0.0, 2.0, 0.3, 1.8, 2.6);
+        Vec3 targetPosition = new Vec3(0.0, 0.0, 2.3);
+        var regions = TaczHitboxCompat.sampleAimRegions(standingTarget, null, targetPosition, 1.62);
+        Vec3 renderOffset = new Vec3(-0.5, 0.0, 0.25);
 
-        assertEquals(
-                new Vec3(9.9, 1.5, 4.2),
-                TargetSelector.interpolateAimPoint(currentAimPoint, targetVelocity, 0.5F)
-        );
-        assertEquals(
-                currentAimPoint,
-                TargetSelector.interpolateAimPoint(currentAimPoint, targetVelocity, 1.0F)
-        );
+        Vec3 head = TargetSelector.firstVisibleAimPoint(regions, true, renderOffset, point -> true);
+        assertEquals(-0.5, head.x, 1.0e-9);
+        assertEquals(1.585, head.y, 1.0e-9);
+        assertEquals(2.55, head.z, 1.0e-9);
+        assertEquals(standingTarget.getCenter().add(renderOffset),
+                TargetSelector.firstVisibleAimPoint(regions, false, renderOffset, point -> true));
     }
 
     @Test
-    void lockedRandomPointFollowsInterpolatedTargetWithoutRerollingItsOffset() {
-        Vec3 previous = new Vec3(1.0, 2.0, 3.0);
-        Vec3 current = new Vec3(3.0, 4.0, 7.0);
-        Vec3 localOffset = new Vec3(0.1, 0.25, -0.15);
+    void blockedCenterUsesAnotherVisiblePointBeforeSwitchingRegions() {
+        Vec3 head = new Vec3(0.0, 1.6, 2.0);
+        Vec3 exposedHead = new Vec3(0.1, 1.6, 2.0);
+        Vec3 body = new Vec3(0.0, 0.9, 2.0);
+        var regions = new TaczHitboxCompat.AimRegions(List.of(head, exposedHead), List.of(body));
 
-        Vec3 halfway = TargetSelector.interpolateLockedAimPoint(previous, current, localOffset, 0.5F);
-        Vec3 currentFrame = TargetSelector.interpolateLockedAimPoint(previous, current, localOffset, 1.0F);
-
-        assertEquals(2.1, halfway.x, 1.0e-9);
-        assertEquals(3.25, halfway.y, 1.0e-9);
-        assertEquals(4.85, halfway.z, 1.0e-9);
-        assertEquals(3.1, currentFrame.x, 1.0e-9);
-        assertEquals(4.25, currentFrame.y, 1.0e-9);
-        assertEquals(6.85, currentFrame.z, 1.0e-9);
+        assertEquals(exposedHead,
+                TargetSelector.firstVisibleAimPoint(regions, true, Vec3.ZERO, point -> !point.equals(head)));
+        assertEquals(body, TargetSelector.firstVisibleAimPoint(regions, true, Vec3.ZERO, body::equals));
+        assertNull(TargetSelector.firstVisibleAimPoint(regions, true, Vec3.ZERO, point -> false));
     }
 
     @Test

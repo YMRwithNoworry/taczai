@@ -12,11 +12,8 @@ public class RotationHelper {
 
     public static float[] getTargetRotation(Player player, LivingEntity target) {
         AimDecision decision = AimDecision.sample(Config.aimAtHead, Config.headshotRate);
-        return getTargetRotation(player, target, decision);
-    }
-
-    static float[] getTargetRotation(Player player, LivingEntity target, AimDecision decision) {
-        return getTargetRotation(player, target, decision, 1.0F);
+        float[] rotation = getTargetRotation(player, target, decision, 1.0F);
+        return rotation != null ? rotation : new float[]{player.getYRot(), player.getXRot()};
     }
 
     static float[] getTargetRotation(
@@ -25,34 +22,20 @@ public class RotationHelper {
             AimDecision decision,
             float partialTick
     ) {
-        return getTargetRotation(player, target, decision, partialTick, null);
-    }
+        Vec3 spawn = shotOrigin(player, partialTick);
+        Vec3 aimPoint = TargetSelector.visibleAimPoint(player, target, spawn, decision.headshot(), partialTick);
+        if (aimPoint == null) return null;
 
-    static float[] getTargetRotation(
-            Player player,
-            LivingEntity target,
-            AimDecision decision,
-            float partialTick,
-            Vec3 localAimPointOffset
-    ) {
-        Vec3 eyePosition = player.getEyePosition(partialTick);
-        Vec3 spawn = eyePosition.add(0.0, -0.1, 0.0);
         BallisticsSolver.Parameters parameters = TaczBallistics.getParameters(player);
         if (shouldUseDirectCloseAim(
                 spawn,
                 TaczHitboxCompat.getRenderHitboxBox(target, partialTick),
                 parameters.speedPerTick()
         )) {
-            Vec3 closeAimPoint = TargetSelector.lockedAimPoint(
-                    player, target, localAimPointOffset, decision.headshot(), partialTick
-            );
-            return directionToRotation(player, closeAimPoint.subtract(spawn));
+            return directionToRotation(player, aimPoint.subtract(spawn));
         }
 
         Vec3 targetVelocity = BallisticsSolver.targetVelocity(target);
-        Vec3 aimPoint = TargetSelector.lockedAimPoint(
-                player, target, localAimPointOffset, decision.headshot(), partialTick
-        );
 
         BallisticsSolver.AimSolution solution = BallisticsSolver.solve(
                 spawn, aimPoint, targetVelocity, parameters
@@ -62,6 +45,10 @@ public class RotationHelper {
                 ? solution.direction()
                 : aimPoint.subtract(spawn);
         return directionToRotation(player, direction);
+    }
+
+    static Vec3 shotOrigin(Player player, float partialTick) {
+        return player.getEyePosition(partialTick).add(0.0, -0.1, 0.0);
     }
 
     static boolean shouldUseDirectCloseAim(Vec3 spawn, AABB targetBox, double speedPerTick) {

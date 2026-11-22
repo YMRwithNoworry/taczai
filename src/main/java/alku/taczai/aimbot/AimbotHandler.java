@@ -17,7 +17,6 @@ import net.minecraft.network.protocol.game.ServerboundMovePlayerPacket;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.api.distmarker.OnlyIn;
 import net.minecraftforge.client.event.ViewportEvent;
@@ -26,7 +25,6 @@ import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.LogicalSide;
 
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 
 @OnlyIn(Dist.CLIENT)
@@ -40,8 +38,6 @@ public class AimbotHandler {
     private LivingEntity decisionTarget = null;
     private AimDecision aimDecision = null;
     private boolean forcedAim = false;
-
-    private Vec3 localAimPointOffset = null;
 
     private boolean autoFireControllerHeld = false;
     private long autoFireLastShootTimestamp = Long.MIN_VALUE;
@@ -98,14 +94,19 @@ public class AimbotHandler {
             return false;
         }
 
-        AimDecision decision = getAimDecision(player, lockedTarget);
-        float[] rotation = RotationHelper.getTargetRotation(
-                player, lockedTarget, decision, partialTick, localAimPointOffset
-        );
-        RotationHelper.applyRotation(player, rotation[0], rotation[1]);
         ItemStack gunStack = player.getMainHandItem();
         IGun gun = IGun.getIGunOrNull(gunStack);
         boolean autoFire = Config.autoFire && gun != null;
+        AimDecision decision = getAimDecision(lockedTarget);
+        // Shots use the current tick's positions even when triggered during rendering.
+        float[] rotation = RotationHelper.getTargetRotation(player, lockedTarget, decision,
+                autoFire ? 1.0F : partialTick);
+        if (rotation == null) {
+            releaseAutoFire();
+            if (clientTick) updateForcedAim(player, false);
+            return false;
+        }
+        RotationHelper.applyRotation(player, rotation[0], rotation[1]);
         if (clientTick) updateForcedAim(player, autoFire);
         if (autoFire) handleAutoFire(player, gunStack, gun, clientTick);
         else releaseAutoFire();
@@ -121,16 +122,12 @@ public class AimbotHandler {
         return syncedReloading || pendingReloadGun != null;
     }
 
-    private AimDecision getAimDecision(LocalPlayer player, LivingEntity target) {
+    private AimDecision getAimDecision(LivingEntity target) {
         if (aimDecision == null
                 || decisionTarget != target
                 || !aimDecision.matches(Config.aimAtHead, Config.headshotRate)) {
             aimDecision = AimDecision.sample(Config.aimAtHead, Config.headshotRate);
             decisionTarget = target;
-            Vec3 aimPoint = TargetSelector.randomAimPoint(
-                    player, target, aimDecision.headshot(), ThreadLocalRandom.current()
-            );
-            localAimPointOffset = aimPoint == null ? null : aimPoint.subtract(target.position());
         }
         return aimDecision;
     }
@@ -138,7 +135,6 @@ public class AimbotHandler {
     private void clearAimDecision() {
         aimDecision = null;
         decisionTarget = null;
-        localAimPointOffset = null;
     }
 
     private void handleAutoFire(LocalPlayer localPlayer, ItemStack stack, IGun gun, boolean clientTick) {

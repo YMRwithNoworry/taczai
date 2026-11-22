@@ -4,10 +4,7 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.junit.jupiter.api.Test;
 
-import java.util.Random;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -51,26 +48,15 @@ class TaczHitboxCompatTest {
     }
 
     @Test
-    void randomAimPointsStayInsideTheSelectedTaczRegionAndVary() {
-        Vec3 targetPosition = new Vec3(4.0, 2.0, -3.0);
-        AABB hitbox = new AABB(3.7, 2.0, -3.3, 4.3, 3.8, -2.7);
-        AABB headshotBox = new AABB(-0.2, 1.35, -0.2, 0.2, 1.75, 0.2);
-
-        Vec3 firstHead = TaczHitboxCompat.randomAimPoint(
-                hitbox, headshotBox, targetPosition, 1.62, true, new Random(2L)
-        );
-        Vec3 secondHead = TaczHitboxCompat.randomAimPoint(
-                hitbox, headshotBox, targetPosition, 1.62, true, new Random(3L)
-        );
-        Vec3 body = TaczHitboxCompat.randomAimPoint(
-                hitbox, headshotBox, targetPosition, 1.62, false, new Random(4L)
+    void headRegionOutsideCollisionBoxDoesNotProduceAimPoints() {
+        AABB collisionBox = new AABB(-0.3, 0.0, 2.0, 0.3, 0.6, 2.6);
+        AABB configuredHead = new AABB(-0.2, 1.35, -0.2, 0.2, 1.75, 0.2);
+        var regions = TaczHitboxCompat.sampleAimRegions(
+                collisionBox, configuredHead, new Vec3(0.0, 0.0, 2.3), 0.42
         );
 
-        assertTrue(headshotBox.move(targetPosition).contains(firstHead));
-        assertTrue(headshotBox.move(targetPosition).contains(secondHead));
-        assertNotEquals(firstHead, secondHead);
-        assertNotEquals(headshotBox.move(targetPosition).getCenter(), firstHead);
-        assertFalse(TaczHitboxCompat.isHeadshotPoint(body, targetPosition, headshotBox, 1.62));
+        assertTrue(regions.headPoints().isEmpty());
+        assertFalse(regions.bodyPoints().isEmpty());
     }
 
     @Test
@@ -115,19 +101,4 @@ class TaczHitboxCompatTest {
         assertEquals(box.maxY, crouched.maxY, 1.0e-9);
     }
 
-    @Test
-    void shotPreferenceUsesTheRequestedTaczRegionAndFallsBackOnlyWhenEmpty() {
-        Vec3 head = new Vec3(0.0, 1.6, 2.0);
-        Vec3 body = new Vec3(0.0, 0.8, 2.0);
-        TaczHitboxCompat.AimRegions both = new TaczHitboxCompat.AimRegions(
-                java.util.List.of(head), java.util.List.of(body)
-        );
-        TaczHitboxCompat.AimRegions bodyOnly = new TaczHitboxCompat.AimRegions(
-                java.util.List.of(), java.util.List.of(body)
-        );
-
-        assertTrue(both.preferredPoints(true).contains(head));
-        assertTrue(both.preferredPoints(false).contains(body));
-        assertTrue(bodyOnly.preferredPoints(true).contains(body));
-    }
 }

@@ -7,7 +7,6 @@ import net.minecraft.world.phys.Vec3;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.random.RandomGenerator;
 
 final class PeekTargetCompat {
     private static final float CURRENT_STATE_PARTIAL_TICK = 1.0F;
@@ -25,29 +24,6 @@ final class PeekTargetCompat {
             return null;
         }
         return new TaczHitboxCompat.AimRegions(hitboxes.aimPoints(), hitboxes.bodyAimPoints());
-    }
-
-    static Vec3 randomAimPoint(Player player, boolean preferHead, RandomGenerator random) {
-        PeekHitboxes hitboxes = getActiveHitboxes(player);
-        if (hitboxes == null || random == null) {
-            return null;
-        }
-
-        Vec3 point = preferHead
-                ? randomOrientedBoxPoint(
-                        hitboxes.center(), hitboxes.axisRight(), hitboxes.halfRight(),
-                        hitboxes.axisUp(), hitboxes.halfUp(), hitboxes.axisForward(), hitboxes.halfForward(), random
-                )
-                : TaczHitboxCompat.randomPointInBox(hitboxes.lowerBody(), random);
-        if (point != null) {
-            return point;
-        }
-        return preferHead
-                ? TaczHitboxCompat.randomPointInBox(hitboxes.lowerBody(), random)
-                : randomOrientedBoxPoint(
-                        hitboxes.center(), hitboxes.axisRight(), hitboxes.halfRight(),
-                        hitboxes.axisUp(), hitboxes.halfUp(), hitboxes.axisForward(), hitboxes.halfForward(), random
-                );
     }
 
     static List<List<Vec3>> activeHitboxCorners(Player player) {
@@ -109,15 +85,7 @@ final class PeekTargetCompat {
                     boxCorners(lowerBody),
                     orientedBoxCorners(center, axisRight, halfRight, axisUp, halfUp, axisForward, halfForward),
                     sampleOrientedBox(center, axisRight, halfRight, axisUp, halfUp, axisForward, halfForward),
-                    TaczHitboxCompat.sampleAabb(lowerBody),
-                    lowerBody,
-                    center,
-                    axisRight,
-                    halfRight,
-                    axisUp,
-                    halfUp,
-                    axisForward,
-                    halfForward
+                    TaczHitboxCompat.sampleAabb(lowerBody)
             );
         } catch (ReflectiveOperationException | RuntimeException | LinkageError ignored) {
             return null;
@@ -174,15 +142,7 @@ final class PeekTargetCompat {
             List<Vec3> lowerBodyCorners,
             List<Vec3> upperBodyCorners,
             List<Vec3> aimPoints,
-            List<Vec3> bodyAimPoints,
-            AABB lowerBody,
-            Vec3 center,
-            Vec3 axisRight,
-            double halfRight,
-            Vec3 axisUp,
-            double halfUp,
-            Vec3 axisForward,
-            double halfForward
+            List<Vec3> bodyAimPoints
     ) {
     }
 
@@ -230,34 +190,6 @@ final class PeekTargetCompat {
             }
         }
         return List.copyOf(points);
-    }
-
-    static Vec3 randomOrientedBoxPoint(
-            Vec3 center,
-            Vec3 axisRight,
-            double halfRight,
-            Vec3 axisUp,
-            double halfUp,
-            Vec3 axisForward,
-            double halfForward,
-            RandomGenerator random
-    ) {
-        if (center == null || axisRight == null || axisUp == null || axisForward == null
-                || !validHalfExtent(halfRight) || !validHalfExtent(halfUp) || !validHalfExtent(halfForward)) {
-            return null;
-        }
-
-        Vec3 right = axisRight.normalize();
-        Vec3 up = axisUp.normalize();
-        Vec3 forward = axisForward.normalize();
-        if (right.lengthSqr() < 1.0e-8 || up.lengthSqr() < 1.0e-8 || forward.lengthSqr() < 1.0e-8) {
-            return null;
-        }
-
-        double rightOffset = random.nextDouble() * halfRight * 1.8 - halfRight * 0.9;
-        double upOffset = random.nextDouble() * halfUp * 1.8 - halfUp * 0.9;
-        double forwardOffset = random.nextDouble() * halfForward * 1.8 - halfForward * 0.9;
-        return center.add(right.scale(rightOffset)).add(up.scale(upOffset)).add(forward.scale(forwardOffset));
     }
 
     private static boolean validHalfExtent(double value) {
