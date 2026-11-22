@@ -3,10 +3,11 @@ package alku.taczai.aimbot;
 import alku.taczai.Config;
 import alku.taczai.keybind.AimbotTargetChangedEvent;
 import alku.taczai.keybind.KeyMappings;
+import com.tacz.guns.api.TimelessAPI;
 import com.tacz.guns.api.client.gameplay.IClientPlayerGunOperator;
 import com.tacz.guns.api.entity.IGunOperator;
 import com.tacz.guns.api.entity.ShootResult;
-import com.tacz.guns.api.TimelessAPI;
+import com.tacz.guns.api.event.common.GunReloadEvent;
 import com.tacz.guns.api.item.IGun;
 import com.tacz.guns.api.item.gun.FireMode;
 import com.tacz.guns.resource.index.CommonGunIndex;
@@ -23,13 +24,17 @@ import net.minecraftforge.client.event.ViewportEvent;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.eventbus.api.EventPriority;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
+import net.minecraftforge.fml.LogicalSide;
 
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.TimeUnit;
 
 @OnlyIn(Dist.CLIENT)
 public class AimbotHandler {
     /** TACZ returns COOL_DOWN while the remaining client cooldown is 50 ms or more. */
     private static final long SHOOT_COOLDOWN_THRESHOLD = 50L;
+    // Match the timeout TACZ uses when waiting for the server to acknowledge a local reload.
+    private static final long RELOAD_SYNC_TIMEOUT_NANOS = TimeUnit.MILLISECONDS.toNanos(250L);
 
     private LivingEntity lockedTarget = null;
     private LivingEntity decisionTarget = null;
@@ -40,6 +45,17 @@ public class AimbotHandler {
 
     private boolean autoFireControllerHeld = false;
     private long autoFireLastShootTimestamp = Long.MIN_VALUE;
+    private ItemStack pendingReloadGun;
+    private long reloadRequestedAtNanos;
+
+    @SubscribeEvent(priority = EventPriority.LOWEST)
+    public void onGunReload(GunReloadEvent event) {
+        if (event.getLogicalSide() != LogicalSide.CLIENT || event.getEntity() != Minecraft.getInstance().player) return;
+
+        pendingReloadGun = event.getGunItemStack();
+        reloadRequestedAtNanos = System.nanoTime();
+        releaseAutoFire();
+    }
 
     @SubscribeEvent(priority = EventPriority.HIGH)
     public void onClientTick(TickEvent.ClientTickEvent event) {
@@ -65,7 +81,7 @@ public class AimbotHandler {
         if (player == null || mc.level == null || !player.isAlive() || player.isSpectator()
                 || !KeyMappings.aimbotEnabled || !isHoldingTaczGun(player)) {
             lockedTarget = null;
-        } else if (mc.screen != null || mc.getOverlay() != null || mc.isPaused()
+        } else if (isReloading(player) || mc.screen != null || mc.getOverlay() != null || mc.isPaused()
                 || !mc.mouseHandler.isMouseGrabbed() || !mc.isWindowActive()) {
             releaseAutoFire();
             if (clientTick) updateForcedAim(player, false);
@@ -94,6 +110,15 @@ public class AimbotHandler {
         if (autoFire) handleAutoFire(player, gunStack, gun, clientTick);
         else releaseAutoFire();
         return true;
+    }
+
+    private boolean isReloading(LocalPlayer player) {
+        boolean syncedReloading = IGunOperator.fromLivingEntity(player).getSynReloadState().getStateType().isReloading();
+        if (syncedReloading || pendingReloadGun != player.getMainHandItem()
+                || System.nanoTime() - reloadRequestedAtNanos >= RELOAD_SYNC_TIMEOUT_NANOS) {
+            pendingReloadGun = null;
+        }
+        return syncedReloading || pendingReloadGun != null;
     }
 
     private AimDecision getAimDecision(LocalPlayer player, LivingEntity target) {
@@ -139,10 +164,8 @@ public class AimbotHandler {
         }
 
         releaseAutoFire();
-        IGunOperator gunOperator = IGunOperator.fromLivingEntity(localPlayer);
-        boolean reloading = gunOperator.getSynReloadState().getStateType().isReloading();
         long shootCooldown = operator.getClientShootCoolDown();
-        if (!shouldAutoFire(reloading, shootCooldown)) return;
+        if (!shouldAutoFire(shootCooldown)) return;
 
         syncAimToServer(localPlayer);
         ShootResult result = operator.shoot();
@@ -208,10 +231,8 @@ public class AimbotHandler {
         }
     }
 
-    static boolean shouldAutoFire(boolean reloading, long shootCooldown) {
-        return !reloading
-                && shootCooldown >= 0L
-                && shootCooldown < SHOOT_COOLDOWN_THRESHOLD;
+    static boolean shouldAutoFire(long shootCooldown) {
+        return shootCooldown >= 0L && shootCooldown < SHOOT_COOLDOWN_THRESHOLD;
     }
 
     @SubscribeEvent
