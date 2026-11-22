@@ -51,10 +51,7 @@ public class TargetSelector {
 
     static double aimScore(Vec3 eyePos, Vec3 lookVec, AABB targetBox) {
         Vec3 direction = lookVec.normalize();
-        double rayLength = eyePos.distanceTo(targetBox.getCenter()) + targetBox.getSize() + 1.0;
-
-        if (targetBox.contains(eyePos)
-                || targetBox.clip(eyePos, eyePos.add(direction.scale(rayLength))).isPresent()) {
+        if (crosshairIntersects(eyePos, direction, targetBox)) {
             return 0.0;
         }
 
@@ -63,6 +60,9 @@ public class TargetSelector {
     }
 
     static double aimScore(Player shooter, Vec3 eyePos, Vec3 lookVec, LivingEntity target) {
+        if (crosshairIntersects(eyePos, lookVec, TaczHitboxCompat.getCurrentAimHitboxBox(target))) {
+            return 0.0;
+        }
         return aimScore(eyePos, lookVec, TaczHitboxCompat.getAimRegions(target, shooter).allPoints());
     }
 
@@ -94,30 +94,36 @@ public class TargetSelector {
         return angle <= maxDegrees + 1.0e-7;
     }
 
-    static boolean isBoxWithinFov(Vec3 eyePos, Vec3 lookDirection, AABB targetBox, double maxDegrees) {
+    private static boolean crosshairIntersects(Vec3 eyePos, Vec3 lookDirection, AABB targetBox) {
         if (targetBox.contains(eyePos)) return true;
         if (lookDirection.lengthSqr() < 1.0e-12) return false;
 
         Vec3 direction = lookDirection.normalize();
         double rayLength = eyePos.distanceTo(targetBox.getCenter()) + targetBox.getSize() + 1.0;
-        if (targetBox.clip(eyePos, eyePos.add(direction.scale(rayLength))).isPresent()) {
-            return true;
-        }
-
-        List<Vec3> points = TaczHitboxCompat.sampleAabb(targetBox);
-        return points.stream().anyMatch(point ->
-                isWithinFov(lookDirection, point.subtract(eyePos), maxDegrees));
+        return targetBox.clip(eyePos, eyePos.add(direction.scale(rayLength))).isPresent();
     }
 
     static boolean isTargetWithinFov(
+            Vec3 eyePos,
+            Vec3 lookDirection,
+            AABB targetBox,
+            List<Vec3> aimPoints,
+            double maxDegrees
+    ) {
+        return crosshairIntersects(eyePos, lookDirection, targetBox)
+                || aimPoints.stream().anyMatch(point ->
+                        isWithinFov(lookDirection, point.subtract(eyePos), maxDegrees));
+    }
+
+    private static boolean isTargetWithinFov(
             Player shooter,
             Vec3 eyePos,
             Vec3 lookDirection,
             LivingEntity target,
             double maxDegrees
     ) {
-        return TaczHitboxCompat.getAimRegions(target, shooter).allPoints().stream()
-                .anyMatch(point -> isWithinFov(lookDirection, point.subtract(eyePos), maxDegrees));
+        return isTargetWithinFov(eyePos, lookDirection, TaczHitboxCompat.getCurrentAimHitboxBox(target),
+                TaczHitboxCompat.getAimRegions(target, shooter).allPoints(), maxDegrees);
     }
 
     private static LivingEntity raytraceEntity(Player player, boolean excludeTeammates) {
@@ -169,7 +175,7 @@ public class TargetSelector {
 
     /** Keep the current target locked while it remains visible and valid. */
     public static boolean isTrackableTarget(Player player, LivingEntity target) {
-        if (player == null || target == null || player.level() == null || !target.isAlive()) return false;
+        if (player == null || target == null || player.level() != target.level() || !target.isAlive()) return false;
         double range = Math.max(0.0, Config.aimbotRange);
         if (target.distanceToSqr(player) > range * range) return false;
         if (target instanceof Player candidate && TeammateManager.isEffectiveTeammate(player, candidate)) return false;

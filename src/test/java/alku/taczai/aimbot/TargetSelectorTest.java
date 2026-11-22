@@ -91,17 +91,15 @@ class TargetSelectorTest {
     }
 
     @Test
-    void closeTargetIntersectingCrosshairIsInsideFovEvenWhenCenterIsOutside() {
-        Vec3 eyePosition = new Vec3(0.0, 1.62, 0.0);
+    void closeTargetIntersectingCrosshairIsInsideFovEvenWhenAllSamplesAreOutside() {
+        Vec3 eyePosition = new Vec3(0.29, 1.62, 0.0);
         Vec3 lookDirection = new Vec3(0.0, 0.0, 1.0);
         AABB closeTarget = new AABB(-0.3, 0.0, 0.1, 0.3, 1.8, 0.7);
 
-        assertFalse(TargetSelector.isWithinFov(
-                lookDirection,
-                closeTarget.getCenter().subtract(eyePosition),
-                20.0
-        ));
-        assertTrue(TargetSelector.isBoxWithinFov(eyePosition, lookDirection, closeTarget, 20.0));
+        var points = TaczHitboxCompat.sampleAabb(closeTarget);
+        assertFalse(points.stream().anyMatch(point ->
+                TargetSelector.isWithinFov(lookDirection, point.subtract(eyePosition), 1.0)));
+        assertTrue(TargetSelector.isTargetWithinFov(eyePosition, lookDirection, closeTarget, points, 1.0));
     }
 
     private static Vec3 directionAtDegrees(double degrees) {

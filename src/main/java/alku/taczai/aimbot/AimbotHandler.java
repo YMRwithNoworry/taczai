@@ -39,12 +39,9 @@ public class AimbotHandler {
 
     private Vec3 localAimPointOffset = null;
 
-    /** Aim the local camera is rendered at while the target remains locked. */
-    private boolean cameraAimActive = false;
-    private float cameraAimYaw = 0.0F;
-    private float cameraAimPitch = 0.0F;
-    private long lastCameraFrameNanos = 0L;
-    private final AimRotationController cameraRotation = new AimRotationController();
+    private boolean aimActive = false;
+    private long lastAimUpdateNanos = 0L;
+    private final AimRotationController aimRotation = new AimRotationController();
     private boolean autoFireControllerHeld = false;
     private long autoFireLastShootTimestamp = Long.MIN_VALUE;
 
@@ -56,8 +53,9 @@ public class AimbotHandler {
         if (mc.player == null) {
             TaczAutoFireCompat.setControllerShootDown(false);
             autoFireControllerHeld = false;
+            lockedTarget = null;
             clearAimDecision();
-            releaseCameraAim();
+            releaseAim();
             forcedAim = false;
             return;
         }
@@ -65,7 +63,7 @@ public class AimbotHandler {
             releaseAutoFire(mc.player);
             lockedTarget = null;
             clearAimDecision();
-            releaseCameraAim();
+            releaseAim();
             updateForcedAim(mc.player, false);
             return;
         }
@@ -76,7 +74,7 @@ public class AimbotHandler {
             releaseAutoFire(mc.player);
             lockedTarget = null;
             clearAimDecision();
-            releaseCameraAim();
+            releaseAim();
             updateForcedAim(mc.player, false);
             return;
         }
@@ -85,7 +83,7 @@ public class AimbotHandler {
             releaseAutoFire(mc.player);
             lockedTarget = null;
             clearAimDecision();
-            releaseCameraAim();
+            releaseAim();
             updateForcedAim(mc.player, false);
             return;
         }
@@ -94,25 +92,23 @@ public class AimbotHandler {
             LivingEntity previousTarget = lockedTarget;
             lockedTarget = TargetSelector.getActiveTarget(player);
             if (lockedTarget != previousTarget) {
-                cameraRotation.reset(player.getYRot(), player.getXRot());
-                lastCameraFrameNanos = 0L;
+                releaseAim();
             }
         }
         if (lockedTarget == null) {
             releaseAutoFire(mc.player);
             clearAimDecision();
-            releaseCameraAim();
+            releaseAim();
             updateForcedAim(mc.player, false);
             return;
         }
 
         AimDecision decision = getAimDecision(lockedTarget);
-        updateForcedAim(mc.player, Config.autoFire);
-
-        activateCameraAim(player);
         float[] targetRot = RotationHelper.getTargetRotation(
                 player, lockedTarget, decision, 1.0F, localAimPointOffset
         );
+        updateAim(player, targetRot);
+        updateForcedAim(mc.player, Config.autoFire);
         if (Config.autoFire && mc.screen == null) {
             handleAutoFire(mc.player, targetRot[0], targetRot[1]);
         } else {
@@ -123,18 +119,17 @@ public class AimbotHandler {
     /** Refreshes the locked aim for the interpolated target position every rendered frame. */
     @SubscribeEvent
     public void onComputeCameraAngles(ViewportEvent.ComputeCameraAngles event) {
-        if (!cameraAimActive || lockedTarget == null) return;
+        if (!aimActive || lockedTarget == null) return;
 
         Minecraft mc = Minecraft.getInstance();
-        if (mc.player == null || mc.level == null
-                || !(event.getCamera().getEntity() instanceof LocalPlayer cameraPlayer)
-                || cameraPlayer != mc.player
-                || !KeyMappings.aimbotEnabled
+        if (mc.player == null || mc.level == null || event.getCamera().getEntity() != mc.player) return;
+
+        if (!KeyMappings.aimbotEnabled
                 || !isHoldingTaczGun(mc.player)
                 || !lockedTarget.isAlive()
                 || lockedTarget.level() != mc.level
                 || lockedTarget.distanceToSqr(mc.player) > Config.aimbotRange * Config.aimbotRange) {
-            releaseCameraAim();
+            releaseAim();
             return;
         }
 
@@ -142,31 +137,30 @@ public class AimbotHandler {
         float[] targetRot = RotationHelper.getTargetRotation(
                 mc.player, lockedTarget, decision, (float) event.getPartialTick(), localAimPointOffset
         );
-        activateCameraAim(mc.player);
-        long frameNanos = System.nanoTime();
-        double frameSeconds = lastCameraFrameNanos == 0L
-                ? 1.0 / 60.0
-                : (frameNanos - lastCameraFrameNanos) / 1_000_000_000.0;
-        lastCameraFrameNanos = frameNanos;
-        float[] smoothedRotation = cameraRotation.update(targetRot[0], targetRot[1], frameSeconds);
-        cameraAimYaw = smoothedRotation[0];
-        cameraAimPitch = smoothedRotation[1];
-        RotationHelper.applyRotation(mc.player, cameraAimYaw, cameraAimPitch);
-        event.setYaw(cameraAimYaw);
-        event.setPitch(Mth.clamp(cameraAimPitch, -90.0F, 90.0F));
+        updateAim(mc.player, targetRot);
+        event.setYaw(mc.player.getYRot());
+        event.setPitch(mc.player.getXRot());
     }
 
-    private void activateCameraAim(Player player) {
-        if (!cameraAimActive) {
-            cameraRotation.reset(player.getYRot(), player.getXRot());
-            lastCameraFrameNanos = 0L;
+    private void updateAim(Player player, float[] targetRotation) {
+        if (!aimActive) {
+            aimRotation.reset(player.getYRot(), player.getXRot());
+            aimActive = true;
         }
-        cameraAimActive = true;
+
+        // Tick and render updates share one clock so each interval advances the turn once.
+        long now = System.nanoTime();
+        double elapsedSeconds = lastAimUpdateNanos == 0L
+                ? 1.0 / 60.0
+                : (now - lastAimUpdateNanos) / 1_000_000_000.0;
+        lastAimUpdateNanos = now;
+        float[] rotation = aimRotation.update(targetRotation[0], targetRotation[1], elapsedSeconds);
+        RotationHelper.applyRotation(player, rotation[0], rotation[1]);
     }
 
-    private void releaseCameraAim() {
-        cameraAimActive = false;
-        lastCameraFrameNanos = 0L;
+    private void releaseAim() {
+        aimActive = false;
+        lastAimUpdateNanos = 0L;
     }
 
     private AimDecision getAimDecision(LivingEntity target) {
@@ -313,7 +307,7 @@ public class AimbotHandler {
         if (event.getTarget() == null) {
             lockedTarget = null;
             clearAimDecision();
-            releaseCameraAim();
+            releaseAim();
         }
     }
 
