@@ -1,5 +1,8 @@
 package alku.taczai.aimbot;
 
+import com.tacz.guns.api.item.gun.FireMode;
+import com.tacz.guns.resource.pojo.data.gun.GunData;
+
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -10,12 +13,28 @@ final class TaczAutoFireCompat {
     private TaczAutoFireCompat() {
     }
 
-    static boolean shouldReleaseAfterRecordedShot(
-            boolean continuousFireMode,
-            long previousTimestamp,
-            long currentTimestamp
-    ) {
-        return !continuousFireMode && currentTimestamp != previousTimestamp;
+    static boolean requiresCharge(GunData gunData, FireMode mode) {
+        Method getter = ChargeApi.GET_CHARGE_DATA;
+        if (getter == null) return false;
+
+        try {
+            return getter.invoke(gunData, mode) != null;
+        } catch (IllegalAccessException | InvocationTargetException | IllegalArgumentException exception) {
+            // Use the native trigger when the gun's charge requirements are unknown.
+            return true;
+        }
+    }
+
+    private static final class ChargeApi {
+        private static final Method GET_CHARGE_DATA = findChargeDataGetter();
+
+        private static Method findChargeDataGetter() {
+            try {
+                return GunData.class.getMethod("getChargeData", FireMode.class);
+            } catch (NoSuchMethodException | LinkageError | SecurityException exception) {
+                return null;
+            }
+        }
     }
 
     static boolean setControllerShootDown(boolean down) {

@@ -3,6 +3,8 @@ package alku.taczai.aimbot;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class AimbotHandlerTest {
@@ -28,20 +30,9 @@ class AimbotHandlerTest {
     }
 
     @Test
-    void semiAutomaticFirePulsesTheControllerAfterEachRecordedShot() {
-        assertTrue(TaczAutoFireCompat.shouldReleaseAfterRecordedShot(false, 100L, 200L));
-        assertFalse(TaczAutoFireCompat.shouldReleaseAfterRecordedShot(false, 200L, 200L));
-    }
-
-    @Test
-    void continuousFireKeepsTheControllerHeldBetweenRecordedShots() {
-        assertFalse(TaczAutoFireCompat.shouldReleaseAfterRecordedShot(true, 100L, 200L));
-    }
-
-    @Test
-    void autoFireUsesTaczControllerStateInsteadOfSubmittingItsOwnShot() {
-        assertTrue(TaczAutoFireCompat.findControllerShootTick(ControllerShootKey.class) != null);
-        assertTrue(TaczAutoFireCompat.findControllerShootTick(OldShootKey.class) == null);
+    void chargedWeaponsCanUseTheNativeControllerWhenTaczProvidesIt() {
+        assertNotNull(TaczAutoFireCompat.findControllerShootTick(ControllerShootKey.class));
+        assertNull(TaczAutoFireCompat.findControllerShootTick(OldShootKey.class));
     }
 
     public static final class ControllerShootKey {
@@ -53,13 +44,6 @@ class AimbotHandlerTest {
     public static final class OldShootKey {
         public static void shootControllerTick(boolean down) {
         }
-    }
-
-    @Test
-    void autoFireWaitsUntilTheSmoothedCameraIsAligned() {
-        assertFalse(AimbotHandler.isAimAligned(0.0F, 0.0F, 2.0F, 0.0F, 1.0F));
-        assertFalse(AimbotHandler.isAimAligned(0.0F, 0.0F, 0.0F, -2.0F, 1.0F));
-        assertTrue(AimbotHandler.isAimAligned(179.5F, 2.0F, -180.0F, 2.5F, 1.0F));
     }
 
     @Test
